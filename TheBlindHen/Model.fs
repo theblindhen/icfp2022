@@ -23,7 +23,8 @@ type Position = {
 type Image = {
     size: Size
     /// The pixels of the image, in row-major order (first row first, then
-    /// second row, etc.).
+    /// second row, etc.). The y-axis points upwards, so the first pixel in the
+    /// array is the bottom-left pixel of the image.
     pixels: Color[]
 }
 
