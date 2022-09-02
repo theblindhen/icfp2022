@@ -46,6 +46,9 @@ let sliceWholeImage (img: Image) =
 let sliceImage (img: Image) (size: Size) (offset: Position) =
     { size=size; offset=offset; _img=img }
 
+let subslice (img: ImageSlice) (size: Size) (offset: Position) =
+    { size=size; offset={x=img.offset.x + offset.x; y=img.offset.y + offset.y}; _img=img._img }
+
 let colorAtPosImg (img: Image) (pos: Position) : Color =
     img.pixels[pos.y * img.size.width + pos.x]
 

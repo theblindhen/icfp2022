@@ -5,7 +5,7 @@ open GUI
 [<EntryPoint>]
 let main args =
     if args.Length < 1 then
-        printfn "Usage TheBlindHen.exe [--ai] <target image>"
+        printfn "Usage TheBlindHen.exe [--ai|--quadtree] <target image>"
         1
     else
     let canvas = blankCanvas {width = 400; height = 400}
@@ -18,7 +18,16 @@ let main args =
         let solution_canvas = Instructions.simulate canvas solution
         let solution_image = renderCanvas solution_canvas
         let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-        printfn "AI on %s\nScore %d (TODO: Only includes image distance)\nInstructions:\n%s" taskPath (image_distance) (Instructions.deparse solution)
+        printfn "One-line solver on %s\nScore %d (TODO: Only includes image distance)\nInstructions:\n%s" taskPath (image_distance) (Instructions.deparse solution)
+        0
+    else if args[0] = "--quadtree" then
+        let taskPath = args[1]
+        let task = loadPNG taskPath
+        let solution = AI.quadtreeSolver (sliceWholeImage task) canvas
+        let solution_canvas = Instructions.simulate canvas solution
+        let solution_image = renderCanvas solution_canvas
+        let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
+        printfn "Quadtree on %s\nScore %d (TODO: Only includes image distance)\nInstructions:\n%s" taskPath (image_distance) (Instructions.deparse solution)
         0
     else
         /// GUI
