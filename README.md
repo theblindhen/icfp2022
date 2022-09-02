@@ -2,7 +2,7 @@
 
 To build and run in debug mode:
 ```
-dotnet run -project TheBlindHen
+dotnet run --project TheBlindHen
 ```
 
 To build and then run in release mode:
