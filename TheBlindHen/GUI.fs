@@ -1,6 +1,8 @@
 module GUI
 
 let WINDOWSIZE = 800.0
+let CANVASWIDTH = 400.0
+let CANVASHEIGHT = 400.0
 
 open System
 open Model
@@ -45,19 +47,19 @@ module MVU =
         state.Canvas.topBlocks
         |> Map.toList
         |> List.map (fun (id, block) ->
-            let size, lowerLeft = block.size, block.lowerLeft
+            let blockSize, lowerLeft = block.size, block.lowerLeft
             [
                 Line.create [
-                   Line.startPoint (float lowerLeft.x, float lowerLeft.y)
-                   Line.endPoint (float (lowerLeft.x + size.width), float (lowerLeft.y))
+                   Line.startPoint (float lowerLeft.x, CANVASHEIGHT - float lowerLeft.y)
+                   Line.endPoint (float (lowerLeft.x + blockSize.width), CANVASHEIGHT - float (lowerLeft.y))
                    Line.strokeThickness 2.0
-                   Line.stroke "#D3D3D3"
+                   Line.stroke "#000000"
                 ] :> Avalonia.FuncUI.Types.IView
                 Line.create [
-                   Line.startPoint (float lowerLeft.x, float lowerLeft.y)
-                   Line.endPoint (float (lowerLeft.x), float (lowerLeft.y + size.height))
+                   Line.startPoint (float lowerLeft.x, CANVASHEIGHT - float lowerLeft.y)
+                   Line.endPoint (float lowerLeft.x, CANVASHEIGHT - float (lowerLeft.y + blockSize.height))
                    Line.strokeThickness 2.0
-                   Line.stroke "#D3D3D3"
+                   Line.stroke "#000000"
                 ] :> Avalonia.FuncUI.Types.IView
 
             ])
