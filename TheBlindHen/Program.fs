@@ -10,5 +10,6 @@ let main args =
         1
     else
         let imgPath = args[0]
-        showGui imgPath canvas |> ignore
+        let target = loadPNG imgPath
+        showGui target canvas |> ignore
         0

@@ -8,12 +8,12 @@ open System
 open Model
 
 type Globals = {
-    mutable imagePath: string
+    mutable target: Image option
     mutable canvas: Canvas option
 }
 
 let globals = {
-    imagePath = ""
+    target = None
     canvas = None
 }
 
@@ -26,16 +26,16 @@ module MVU =
     open Avalonia.Media.Imaging
 
     type State = {
-        TargetBitmap: Bitmap
+        Target: Model.Image
         Canvas: Model.Canvas
         Scale: int
     }
 
     type Msg = ZoomIn | ZoomOut
 
-    let init (imagePath: string, canvas: Model.Canvas): State * Cmd<Msg> =
+    let init (target: Model.Image, canvas: Model.Canvas): State * Cmd<Msg> =
         {
-            TargetBitmap = new Avalonia.Media.Imaging.Bitmap(imagePath)
+            Target = target
             Canvas = canvas
             Scale = 1
         },
@@ -68,9 +68,10 @@ module MVU =
         |> List.concat
 
     let viewTarget (state: State) =
-        let pixelSize = new Avalonia.PixelSize(CANVASHEIGHT * state.Scale, CANVASWIDTH * state.Scale)
-        let scaledBitmap = state.TargetBitmap.CreateScaledBitmap(pixelSize, Avalonia.Visuals.Media.Imaging.BitmapInterpolationMode.LowQuality) 
-        let scaledCroppedBitmap = new CroppedBitmap(scaledBitmap, new Avalonia.PixelRect(0, 0, 400, 400))
+        let targetImg = Loader.toImageSharp state.Target
+        Loader.resize { width = CANVASWIDTH * state.Scale; height = CANVASHEIGHT * state.Scale } targetImg
+        let targetImg = new Avalonia.Media.Imaging.Bitmap(Loader.toPngStream targetImg)
+        let scaledCroppedBitmap = new CroppedBitmap(targetImg, new Avalonia.PixelRect(0, 0, 400, 400))
         [
             Image.create [
                 Image.source scaledCroppedBitmap
@@ -117,7 +118,7 @@ type MainWindow() as this =
 
         Program.mkProgram MVU.init MVU.update MVU.view
         |> Program.withHost this
-        |> Program.runWith (globals.imagePath, Option.get globals.canvas)
+        |> Program.runWith (Option.get globals.target, Option.get globals.canvas)
 
 type App() =
     inherit Application()
@@ -132,8 +133,8 @@ type App() =
             desktopLifetime.MainWindow <- MainWindow()
         | _ -> ()
 
-let showGui imgPath canvas =
-    globals.imagePath <- imgPath
+let showGui target canvas =
+    globals.target <- Some target
     globals.canvas <- Some canvas
     AppBuilder
         .Configure<App>()
