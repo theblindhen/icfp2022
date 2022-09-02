@@ -1,4 +1,12 @@
-﻿
+﻿open Loader
+open GUI
 
-// For more information see https://aka.ms/fsharp-console-apps
-printfn "Hello from F#"
+[<EntryPoint>]
+let main args =
+    if args.Length < 1 then
+        printfn "Specify path to target image as first argument"
+        1
+    else
+        let imgPath = args[0]
+        showGui imgPath |> ignore
+        0
