@@ -17,8 +17,6 @@ let deparse_instruction (isl: ISL) : string =
         | V -> "[Y]"
     let pos_to_string (pos: Position) : string =
         sprintf "[%d,%d]" pos.x pos.y
-    let color_to_string (color: Color) : string =
-        sprintf "[%d,%d,%d,%d]" color.r color.g color.b color.a
     let block_to_string (block: string) : string =
         sprintf "[%s]" block
     match isl with
@@ -27,7 +25,7 @@ let deparse_instruction (isl: ISL) : string =
     | ISL.PointCut(block, position) ->
         sprintf "cut %s %s" (block_to_string block) (pos_to_string position)
     | ISL.ColorBlock(block, color) ->
-        sprintf "color %s %s" (block_to_string block) (color_to_string color)
+        sprintf "color %s %s" (block_to_string block) (color.toString ())
     | ISL.SwapBlocks(block1, block2) ->
         sprintf "swap %s %s" (block_to_string block1) (block_to_string block2)
     | ISL.MergeBlocks(block1, block2) ->

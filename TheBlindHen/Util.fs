@@ -19,10 +19,16 @@ let averageColor (img: ImageSlice) : Color =
     let area = area img.size
     {r=byte(sum_r/area); g=byte (sum_g/area); b=byte (sum_b/area); a=byte(sum_a/area)}
 
-let medianColorLst (cols: Color seq) : Color =
+let medianColorSeq (cols: Color seq) : Color =
     let fcols = cols
                 |> List.ofSeq
                 |> List.map (fun c -> (float c.r, float c.g, float c.b, float c.a))
+    if fcols.Length = 0 then
+        printfn "WARNING: medianColorSeq called with empty list"
+        {r=0uy; g=0uy; b=0uy; a=0uy}
+    elif fcols.Length = 1 then
+        cols |> Seq.head
+    else
     let fdist (a0,a1,a2,a3) (b0,b1,b2,b3) =
         let d0 = a0 - b0
         let d1 = a1 - b1
@@ -45,16 +51,16 @@ let medianColorLst (cols: Color seq) : Color =
                  N + d)
             ) (0., 0., 0., 0., 0.)
         let est' = (w0/N, w1/N, w2/N, w3/N)
-        if fdist est est' < 0.1 then
+        if fdist est est' < 0.01 then
             est'
         else
             loop (i+1) est'
-    // Choose a random initial point
-    let rnd = System.Random()
-    let init_est = (rnd.NextDouble() * 255.0,
-                    rnd.NextDouble() * 255.0,
-                    rnd.NextDouble() * 255.0,
-                    rnd.NextDouble() * 255.0)
+    // Choose an initial point that is unlikely to let us ever end up on one of
+    // the integral input points
+    let init_est = ( 128.234203952,
+                     127.23942323,
+                     128.9102114,
+                     127.983523269 )
     let fmid0, fmid1, fmid2, fmid3 = loop 0 init_est
     if fmid0 < -0.1 || fmid0 > 255.1 ||
        fmid1 < -0.1 || fmid1 > 255.1 ||
@@ -74,7 +80,7 @@ let medianColor (img: ImageSlice) : Color =
         for y in 0 .. img.size.height-1 do
             let c = colorAtPos img {x=x; y=y}
             cols.[y * img.size.width + x] <- c
-    medianColorLst cols
+    medianColorSeq cols
 
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
 let colorDistance (c1: Color) (c2: Color) : float =
