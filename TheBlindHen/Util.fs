@@ -4,14 +4,14 @@ open Model
 
 // This should really compute the geometric median, but that's more complicated
 // https://en.wikipedia.org/wiki/Geometric_median
-let median_color (img: ImageSlice) : Color =
+let averageColor (img: ImageSlice) : Color =
     let mutable sum_r: int = 0
     let mutable sum_g: int = 0
     let mutable sum_b: int = 0
     let mutable sum_a: int = 0
     for x in 0 .. img.size.width-1 do
         for y in 0 .. img.size.height-1 do
-            let c = color_at_pos img {x=x; y=y}
+            let c = colorAtPos img {x=x; y=y}
             sum_r <- sum_r + int c.r
             sum_g <- sum_g + int c.g
             sum_b <- sum_b + int c.b
@@ -19,20 +19,77 @@ let median_color (img: ImageSlice) : Color =
     let area = area img.size
     {r=byte(sum_r/area); g=byte (sum_g/area); b=byte (sum_b/area); a=byte(sum_a/area)}
 
+let medianColorLst (cols: Color seq) : Color =
+    let fcols = cols
+                |> List.ofSeq
+                |> List.map (fun c -> (float c.r, float c.g, float c.b, float c.a))
+    let fdist (a0,a1,a2,a3) (b0,b1,b2,b3) =
+        let d0 = a0 - b0
+        let d1 = a1 - b1
+        let d2 = a2 - b2
+        let d3 = a3 - b3
+        sqrt(d0*d0 + d1*d1 + d2*d2 + d3*d3)
+    let rec loop i est =
+        if i > 100 then
+            printfn "WARNING: median_color did not converge after 100 iterations"
+            est
+        else
+        let w0,w1,w2,w3,N =
+            fcols |> List.fold (fun (s0, s1, s2, s3, N) c ->
+                let d = 1. / fdist c est
+                let c0,c1,c2,c3 = c
+                (s0 + c0 * d,
+                 s1 + c1 * d,
+                 s2 + c2 * d,
+                 s3 + c3 * d,
+                 N + d)
+            ) (0., 0., 0., 0., 0.)
+        let est' = (w0/N, w1/N, w2/N, w3/N)
+        if fdist est est' < 0.1 then
+            est'
+        else
+            loop (i+1) est'
+    // Choose a random initial point
+    let rnd = System.Random()
+    let init_est = (rnd.NextDouble() * 255.0,
+                    rnd.NextDouble() * 255.0,
+                    rnd.NextDouble() * 255.0,
+                    rnd.NextDouble() * 255.0)
+    let fmid0, fmid1, fmid2, fmid3 = loop 0 init_est
+    if fmid0 < -0.1 || fmid0 > 255.1 ||
+       fmid1 < -0.1 || fmid1 > 255.1 ||
+       fmid2 < -0.1 || fmid2 > 255.1 || 
+       fmid3 < -0.1 || fmid3 > 255.1 then
+        printfn "WARNING: median_color computed an invalid color: (%f, %f, %f, %f)" fmid0 fmid1 fmid2 fmid3
+    {r=byte(System.Math.Round(fmid0));
+     g=byte(System.Math.Round(fmid1));
+     b=byte(System.Math.Round(fmid2));
+     a=byte(System.Math.Round(fmid3))}
+
+/// Compute the median color of the image slice, using Weiszfeld's algorithm
+let medianColor (img: ImageSlice) : Color =
+    // Convert the image slice to a list of colors
+    let cols = Array.zeroCreate (img.size.width * img.size.height)
+    for x in 0 .. img.size.width-1 do
+        for y in 0 .. img.size.height-1 do
+            let c = colorAtPos img {x=x; y=y}
+            cols.[y * img.size.width + x] <- c
+    medianColorLst cols
+
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
-let color_distance (c1: Color) (c2: Color) : float =
+let colorDistance (c1: Color) (c2: Color) : float =
     let r = int c1.r - int c2.r
     let g = int c1.g - int c2.g
     let b = int c1.b - int c2.b
     let a = int c1.a - int c2.a
     sqrt(float (r*r + g*g + b*b + a*a))
 
-let image_distance (proposal: ImageSlice) (target: ImageSlice) : int =
+let imageDistance (proposal: ImageSlice) (target: ImageSlice) : int =
     assert (proposal.size = target.size)
     let mutable score = 0.0
     for x in 0 .. proposal.size.width-1 do
         for y in 0 .. proposal.size.height-1 do
-            let c1 = color_at_pos proposal {x=x; y=y}
-            let c2 = color_at_pos target {x=x; y=y}
-            score <- score + color_distance c1 c2
+            let c1 = colorAtPos proposal {x=x; y=y}
+            let c2 = colorAtPos target {x=x; y=y}
+            score <- score + colorDistance c1 c2
     int (score * 0.005) // TODO: Should probably be round?

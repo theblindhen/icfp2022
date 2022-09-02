@@ -40,16 +40,16 @@ type ImageSlice = {
     _img: Image
 }
 
-let slice_whole_image (img: Image) =
+let sliceWholeImage (img: Image) =
     { size=img.size; offset={x=0; y=0}; _img=img }
 
-let slice_image (img: Image) (size: Size) (offset: Position) =
+let sliceImage (img: Image) (size: Size) (offset: Position) =
     { size=size; offset=offset; _img=img }
 
-let color_at_pos_img (img: Image) (pos: Position) : Color =
+let colorAtPosImg (img: Image) (pos: Position) : Color =
     img.pixels[pos.y * img.size.width + pos.x]
 
-let color_at_pos (img: ImageSlice) (pos: Position) : Color =
+let colorAtPos (img: ImageSlice) (pos: Position) : Color =
     img._img.pixels[(img.offset.y + pos.y) * img._img.size.width + (img.offset.x + pos.x)]
 
 
