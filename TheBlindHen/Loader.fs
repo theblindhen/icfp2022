@@ -43,5 +43,5 @@ let resize (size: Model.Size) (img: Image<Rgba32>) =
 let toPngStream (img: Image<Rgba32>) : MemoryStream =
     let imgStream = new MemoryStream()
     img.Save(imgStream, PngFormat.Instance)
-    imgStream.Seek(0,  SeekOrigin.Begin)
+    imgStream.Seek(0,  SeekOrigin.Begin) |> ignore
     imgStream
