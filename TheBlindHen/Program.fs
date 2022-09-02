@@ -1,4 +1,8 @@
-﻿
+﻿open Loader
 
-// For more information see https://aka.ms/fsharp-console-apps
-printfn "Hello from F#"
+[<EntryPoint>]
+let main args =
+    let imgPath = args[0]
+    let (width, height, pixelArray) = loadPNG imgPath
+    printfn "loaded target image (image path: %s, width: %d, height: %d)" imgPath width height
+    0
