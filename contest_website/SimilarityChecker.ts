@@ -1,1 +1,36 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Web site created using create-react-app"/><link rel="apple-touch-icon" href="/logo192.png"/><link rel="manifest" href="/manifest.json"/><title>React App</title><script defer="defer" src="/static/js/main.0461e831.js"></script><link href="/static/css/main.65867623.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+/* eslint-disable */
+
+import { RGBA } from "./Color";
+import { Frame } from "./Painter";
+
+export class SimilarityChecker {
+  static dataToFrame(data: [number, number, number, number][]): Frame {
+    let frame: Frame = [];
+
+    for (const item of data) {
+        frame.push(new RGBA(item));
+    }
+
+    return frame;
+  }
+
+  static imageDiff(f1: Frame, f2: Frame): number {
+    let diff = 0;
+    let alpha = 0.005;
+    for (let index = 0; index < f1.length; index++) {
+        const p1 = f1[index];
+        const p2 = f2[index];
+        diff += this.pixelDiff(p1, p2);
+    }
+    return Math.round(diff * alpha);
+  }
+
+  static pixelDiff(p1: RGBA, p2: RGBA): number {
+    const rDist = (p1.r - p2.r) * (p1.r - p2.r);
+    const gDist = (p1.g - p2.g) * (p1.g - p2.g);
+    const bDist = (p1.b - p2.b) * (p1.b - p2.b);
+    const aDist = (p1.a - p2.a) * (p1.a - p2.a);
+    const distance = Math.sqrt(rDist + gDist + bDist + aDist);
+    return distance;
+  }
+}

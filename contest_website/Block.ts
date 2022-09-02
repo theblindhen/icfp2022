@@ -1,1 +1,70 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Web site created using create-react-app"/><link rel="apple-touch-icon" href="/logo192.png"/><link rel="manifest" href="/manifest.json"/><title>React App</title><script defer="defer" src="/static/js/main.0461e831.js"></script><link href="/static/css/main.65867623.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+/* eslint-disable */
+
+import { Point } from './Point';
+import { RGBA } from './Color';
+
+
+export type Size = Point;
+export enum BlockType { SimpleBlockType, ComplexBlockType };
+export type Block =
+    | SimpleBlock
+    | ComplexBlock;
+
+export class SimpleBlock {
+    typ: BlockType;
+
+    id: string;
+
+    bottomLeft: Point;
+
+    topRight: Point;
+
+    size: Size;
+
+    color: RGBA;
+
+    constructor(id: string, bottomLeft: Point, topRight: Point, color: RGBA) {
+        this.typ = BlockType.SimpleBlockType;
+        this.id = id;
+        this.bottomLeft = bottomLeft;
+        this.topRight = topRight;
+        this.size = topRight.getDiff(bottomLeft);
+        this.color = color;
+        if(this.bottomLeft.px > this.topRight.px || this.bottomLeft.py > this.topRight.py) {
+            throw Error('Invalid Block');
+        }
+    }
+
+    getChildren() {
+        return [this];
+    }
+}
+
+export class ComplexBlock {
+    typ: BlockType;
+
+    id: string;
+
+    bottomLeft: Point;
+
+    topRight: Point;
+
+    size: Size;
+
+    subBlocks: SimpleBlock[];
+
+    constructor(id: string, bottomLeft: Point, topRight: Point, subBlocks: SimpleBlock[]) {
+        this.typ = BlockType.ComplexBlockType;
+        this.id = id;
+        this.bottomLeft = bottomLeft;
+        this.topRight = topRight;
+        this.size = topRight.getDiff(bottomLeft);
+        this.subBlocks = subBlocks;
+        if(this.bottomLeft.px > this.topRight.px || this.bottomLeft.py > this.topRight.py) {
+        }
+    }
+
+    getChildren() {
+        return this.subBlocks;
+    }
+}

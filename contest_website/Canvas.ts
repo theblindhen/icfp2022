@@ -1,1 +1,46 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Web site created using create-react-app"/><link rel="apple-touch-icon" href="/logo192.png"/><link rel="manifest" href="/manifest.json"/><title>React App</title><script defer="defer" src="/static/js/main.0461e831.js"></script><link href="/static/css/main.65867623.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+/* eslint-disable */
+
+import { Block, SimpleBlock } from './Block';
+import { RGBA } from './Color';
+import { Point } from './Point';
+
+export type Color = RGBA;
+
+export class Canvas {
+    width: number;
+
+    height: number;
+
+    backgroundColor: Color;
+
+    blocks: Map<string, Block>;
+
+    constructor(width: number, height: number, backgroundColor: Color) {
+        this.width = width;
+        this.height = height;
+        
+        this.backgroundColor = backgroundColor;
+        this.blocks = new Map();
+        this.blocks.set(
+            "0",
+            new SimpleBlock(
+                "0",
+                new Point([0, 0]), 
+                new Point([width, height]), 
+                backgroundColor,
+            )
+        );
+    }
+
+    get size(): Point {
+        return new Point([this.width, this.height]);
+    }
+
+    simplify(): SimpleBlock[] {
+        let simplifiedBlocks: SimpleBlock[] = [];
+        this.blocks.forEach(value => {
+            simplifiedBlocks = simplifiedBlocks.concat(value.getChildren());
+        });
+        return simplifiedBlocks;
+    }
+}

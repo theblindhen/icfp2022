@@ -1,1 +1,28 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Web site created using create-react-app"/><link rel="apple-touch-icon" href="/logo192.png"/><link rel="manifest" href="/manifest.json"/><title>React App</title><script defer="defer" src="/static/js/main.0461e831.js"></script><link href="/static/css/main.65867623.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+
+/* eslint-disable */
+
+import { RGBA } from './Color';
+import { Canvas } from './Canvas';
+import { Point } from './Point';
+
+export type Frame = RGBA[];
+
+export class Painter {
+
+    draw(canvas: Canvas): Frame {
+        const blocks = canvas.simplify();
+        const frame: Frame = new Array(canvas.width * canvas.height);
+        let size = 0;
+        blocks.forEach(block => {
+            const frameTopLeft = new Point([block.bottomLeft.px, canvas.height - block.topRight.py]);
+            const frameBottomRight = new Point([block.topRight.px, canvas.height - block.bottomLeft.py]);
+            size += (frameBottomRight.px - frameTopLeft.px)*(frameBottomRight.py - frameTopLeft.py);
+            for(let y = frameTopLeft.py ; y < frameBottomRight.py ; y++) {
+                    for(let x = frameTopLeft.px; x < frameBottomRight.px ; x++) {
+                    frame[y * canvas.width + x] = block.color;
+                }
+            }
+        });
+        return frame;
+    }
+}

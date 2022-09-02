@@ -1,1 +1,58 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Web site created using create-react-app"/><link rel="apple-touch-icon" href="/logo192.png"/><link rel="manifest" href="/manifest.json"/><title>React App</title><script defer="defer" src="/static/js/main.0461e831.js"></script><link href="/static/css/main.65867623.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+/* eslint-disable */
+
+export class Point {
+    px: number;
+  
+    py: number;
+  
+    constructor(point: [number, number] = [0, 0]) {
+      [this.px, this.py] = point;
+    }
+  
+    getPoints(): [number, number] {
+      return [this.px, this.py];
+    }
+  
+    clone() {
+      return new Point(this.getPoints());
+    }
+
+    getDiff(other: Point) {
+      let newX = this.px - other.px;
+      let newY = this.py - other.py;
+
+      if (newX < 0) {
+        newX = 0;
+      }
+
+      if (newY < 0) {
+        newY = 0;
+      }
+
+      return new Point([newX, newY]);
+    }
+
+    isStrictlyInside(bottomLeft: Point, topRight: Point) {
+      return bottomLeft.px < this.px  &&
+              this.px < topRight.px   &&
+              bottomLeft.py < this.py &&
+              this.py < topRight.py;
+    }
+
+    isOnBoundary(bottomLeft: Point, topRight: Point) {
+      return (bottomLeft.px === this.px  && bottomLeft.py <= this.py && this.py <= topRight.py)
+            || (topRight.px === this.px  && bottomLeft.py <= this.py && this.py <= topRight.py)
+            || (bottomLeft.py === this.py  && bottomLeft.px <= this.px && this.px <= topRight.px)
+            || (topRight.py === this.py  && bottomLeft.px <= this.px && this.px <= topRight.px);
+    }
+    
+    isInside(bottomLeft: Point, topRight: Point) {
+      return this.isStrictlyInside(bottomLeft, topRight) || this.isOnBoundary(bottomLeft, topRight);
+    }
+
+    getScalarSize() {
+      return this.px * this.py;
+    }
+
+  }
+  
