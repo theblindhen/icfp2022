@@ -1,19 +1,19 @@
 module GUI
 
 let WINDOWSIZE = 800.0
-let CANVASWIDTH = 400.0
-let CANVASHEIGHT = 400.0
+let CANVASWIDTH = 400
+let CANVASHEIGHT = 400
 
 open System
 open Model
 
 type Globals = {
-    mutable imagePath: string
+    mutable target: Image option
     mutable canvas: Canvas option
 }
 
 let globals = {
-    imagePath = ""
+    target = None
     canvas = None
 }
 
@@ -26,22 +26,25 @@ module MVU =
     open Avalonia.Media.Imaging
 
     type State = {
-        TargetBitmap: Bitmap
+        Target: Model.Image
         Canvas: Model.Canvas
+        Scale: int
     }
 
-    type Msg = Id
+    type Msg = ZoomIn | ZoomOut
 
-    let init (imagePath: string, canvas: Model.Canvas): State * Cmd<Msg> =
+    let init (target: Model.Image, canvas: Model.Canvas): State * Cmd<Msg> =
         {
-            TargetBitmap = new Avalonia.Media.Imaging.Bitmap(imagePath)
+            Target = target
             Canvas = canvas
+            Scale = 1
         },
         Cmd.none
 
     let update (msg: Msg) (state: State): (State * Cmd<Msg>) =
         match msg with
-        | Id -> state, Cmd.none
+        | ZoomIn -> { state with Scale = state.Scale + 1 }, Cmd.none
+        | ZoomOut -> { state with Scale = max (state.Scale - 1) 1 }, Cmd.none
 
     let viewCanvas (state: State) =
         state.Canvas.topBlocks
@@ -50,31 +53,48 @@ module MVU =
             let blockSize, lowerLeft = block.size, block.lowerLeft
             [
                 Line.create [
-                   Line.startPoint (float lowerLeft.x, CANVASHEIGHT - float lowerLeft.y)
-                   Line.endPoint (float (lowerLeft.x + blockSize.width), CANVASHEIGHT - float (lowerLeft.y))
+                   Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
+                   Line.endPoint (float (lowerLeft.x + blockSize.width), float (CANVASHEIGHT - lowerLeft.y))
                    Line.strokeThickness 2.0
                    Line.stroke "#000000"
                 ] :> Avalonia.FuncUI.Types.IView
                 Line.create [
-                   Line.startPoint (float lowerLeft.x, CANVASHEIGHT - float lowerLeft.y)
-                   Line.endPoint (float lowerLeft.x, CANVASHEIGHT - float (lowerLeft.y + blockSize.height))
+                   Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
+                   Line.endPoint (float lowerLeft.x, float (CANVASHEIGHT - (lowerLeft.y + blockSize.height)))
                    Line.strokeThickness 2.0
                    Line.stroke "#000000"
                 ] :> Avalonia.FuncUI.Types.IView
-
             ])
         |> List.concat
 
     let viewTarget (state: State) =
+        let targetImg = Loader.toImageSharp state.Target
+        Loader.resize { width = CANVASWIDTH * state.Scale; height = CANVASHEIGHT * state.Scale } targetImg
+        let targetImg = new Avalonia.Media.Imaging.Bitmap(Loader.toPngStream targetImg)
+        let scaledCroppedBitmap = new CroppedBitmap(targetImg, new Avalonia.PixelRect(0, 0, 400, 400))
         [
             Image.create [
-                Image.source state.TargetBitmap
+                Image.source scaledCroppedBitmap
             ] :> Avalonia.FuncUI.Types.IView
         ]
 
     let view (state: State) (dispatch) =
         DockPanel.create [
             DockPanel.children [ 
+                UniformGrid.create [
+                    UniformGrid.dock Dock.Bottom
+                    UniformGrid.columns 2
+                    UniformGrid.children [
+                        Button.create [
+                            Button.onClick (fun _ -> dispatch ZoomOut)
+                            Button.content "Zoom out"
+                        ]
+                        Button.create [
+                            Button.onClick (fun _ -> dispatch ZoomIn)
+                            Button.content "Zoom in"
+                        ]
+                    ]
+                ]
                 Canvas.create [
                     Canvas.background "#2c3e50"
                     Canvas.children (viewTarget state @ viewCanvas state)
@@ -98,7 +118,7 @@ type MainWindow() as this =
 
         Program.mkProgram MVU.init MVU.update MVU.view
         |> Program.withHost this
-        |> Program.runWith (globals.imagePath, Option.get globals.canvas)
+        |> Program.runWith (Option.get globals.target, Option.get globals.canvas)
 
 type App() =
     inherit Application()
@@ -113,11 +133,11 @@ type App() =
             desktopLifetime.MainWindow <- MainWindow()
         | _ -> ()
 
-let showGui imgPath canvas =
-    globals.imagePath <- imgPath
+let showGui target canvas =
+    globals.target <- Some target
     globals.canvas <- Some canvas
     AppBuilder
         .Configure<App>()
         .UsePlatformDetect()
         .UseSkia()
-        .StartWithClassicDesktopLifetime([||]) // TODO: how to parse args?
+        .StartWithClassicDesktopLifetime([||])

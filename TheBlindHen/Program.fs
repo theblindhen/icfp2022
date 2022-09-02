@@ -22,6 +22,7 @@ let main args =
         0
     else
         /// GUI
-        let taskPath = args[0]
-        showGui taskPath canvas |> ignore
+        let imgPath = args[0]
+        let target = loadPNG imgPath
+        showGui target canvas |> ignore
         0
