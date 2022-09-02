@@ -9,8 +9,8 @@ let median_color (img: ImageSlice) : Color =
     let mutable sum_g: int = 0
     let mutable sum_b: int = 0
     let mutable sum_a: int = 0
-    for x in 0 .. img.size.width do
-        for y in 0 .. img.size.height do
+    for x in 0 .. img.size.width-1 do
+        for y in 0 .. img.size.height-1 do
             let c = color_at_pos img {x=x; y=y}
             sum_r <- sum_r + int c.r
             sum_g <- sum_g + int c.g
