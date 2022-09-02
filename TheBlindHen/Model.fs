@@ -1,12 +1,14 @@
 module Model
 
 [<Struct>]
-type Color = {
-    r: byte
-    g: byte
-    b: byte
-    a: byte
-}
+type Color =
+    { r: byte
+      g: byte
+      b: byte
+      a: byte }
+      member this.toString () =
+        sprintf "[%d, %d, %d, %d]" (this.r) (this.g) (this.b) (this.a)
+
 
 [<Struct>]
 type Size = {
