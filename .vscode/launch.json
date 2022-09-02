@@ -1,0 +1,52 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Launch TheBlindHen (Debug)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build_debug",
+            "program": "${workspaceFolder}/TheBlindHen/bin/Debug/net6.0/TheBlindHen.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Launch TheBlindHen (Release)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build_release",
+            "program": "${workspaceFolder}/TheBlindHen/bin/Release/net6.0/TheBlindHen.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Run unittests",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "dotnet",
+            "args": ["test"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Run Unittests main program (manual debugging)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build_debug",
+            "program": "${workspaceFolder}/UnitTests/bin/Debug/net6.0/UnitTests.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+    ]
+}
