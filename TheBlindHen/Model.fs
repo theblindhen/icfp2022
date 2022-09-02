@@ -57,3 +57,5 @@ let blankCanvas size = {
             SimpleBlock("0", size, {x = 0; y = 0}, {r = 255uy; g = 255uy; b = 255uy; a = 255uy})
         ) Map.empty
 }
+
+type Direction = H | V
