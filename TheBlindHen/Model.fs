@@ -14,6 +14,8 @@ type Size = {
     height: int
 }
 
+let area (size: Size) = size.width * size.height
+
 [<Struct>]
 type Position = {
     x: int
@@ -26,6 +28,30 @@ type Image = {
     /// second row, etc.).
     pixels: Color[]
 }
+
+[<Struct>]
+type ImageSlice = {
+    /// Size of the slice inside the original image
+    size: Size
+    /// Offset of the lower-left hand of the slice inside the original image
+    offset: Position
+    /// Original image
+    _img: Image
+}
+
+let slice_whole_image (img: Image) =
+    { size=img.size; offset={x=0; y=0}; _img=img }
+
+let slice_image (img: Image) (size: Size) (offset: Position) =
+    { size=size; offset=offset; _img=img }
+
+let color_at_pos_img (img: Image) (pos: Position) : Color =
+    img.pixels[pos.y * img.size.width + pos.x]
+
+let color_at_pos (img: ImageSlice) (pos: Position) : Color =
+    img._img.pixels[(img.offset.y + pos.y) * img._img.size.width + (img.offset.x + pos.x)]
+
+
 
 type Block(id, size, lowerLeft) =
     member val id: string = id with get
