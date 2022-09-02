@@ -30,9 +30,9 @@ type Image = {
 
 type Block(id, size, lowerLeft) =
     member val id: string = id with get
-
-    // shape:
     member val size: Size = size with get
+    /// Lower-left corner of the block, in absolute coordinates from the canvas
+    /// lower-left corner.
     member val lowerLeft: Position = lowerLeft with get
 
 type SimpleBlock(id, size, lowerLeft, color) =
@@ -59,3 +59,20 @@ let blankCanvas size = {
 }
 
 type Direction = H | V
+
+let rec renderBlockInto image offset (block: Block) =
+    match block with
+    | :? SimpleBlock as b ->
+        for y in 0 .. (b.size.height - 1) do
+            for x in 0 .. (b.size.width - 1) do
+                let y = y + offset.y + b.lowerLeft.y
+                let x = x + offset.x + b.lowerLeft.x
+                image.pixels.[y * image.size.width + x] <- b.color
+    | :? ComplexBlock as b ->
+        b.children |> Array.iter (renderBlockInto image offset)
+    | _ -> failwith "Unknown block type"
+
+let renderBlock (block: Block) =
+    let image = { size = block.size; pixels = Array.zeroCreate (block.size.width * block.size.height) }
+    renderBlockInto image {x=(-block.lowerLeft.x); y=(-block.lowerLeft.y)} block
+    image
