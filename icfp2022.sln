@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "TheBlindHen", "TheBlindHen\TheBlindHen.fsproj", "{43BE24C8-CC28-4A41-89AD-399A2D0400E5}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "UnitTests", "UnitTests\UnitTests.fsproj", "{A1F2A1A9-386F-478E-BAA1-E77561FD840F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{43BE24C8-CC28-4A41-89AD-399A2D0400E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{43BE24C8-CC28-4A41-89AD-399A2D0400E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{43BE24C8-CC28-4A41-89AD-399A2D0400E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1F2A1A9-386F-478E-BAA1-E77561FD840F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1F2A1A9-386F-478E-BAA1-E77561FD840F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1F2A1A9-386F-478E-BAA1-E77561FD840F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1F2A1A9-386F-478E-BAA1-E77561FD840F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
