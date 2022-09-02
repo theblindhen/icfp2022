@@ -8,5 +8,5 @@ let main args =
         1
     else
         let imgPath = args[0]
-        showGui imgPath
+        showGui imgPath |> ignore
         0
