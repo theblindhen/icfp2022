@@ -24,10 +24,7 @@ let main args =
         let taskPath = args[1]
         let task = loadPNG taskPath
         let solution = AI.quadtreeSolver (sliceWholeImage task) canvas
-        let solution_canvas = Instructions.simulate canvas solution
-        let solution_image = renderCanvas solution_canvas
-        let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-        printfn "Quadtree on %s\nScore %d (TODO: Only includes image distance)\nInstructions:\n%s" taskPath (image_distance) (Instructions.deparse solution)
+        printfn "Quadtree on %s\nInstructions:\n%s" taskPath (Instructions.deparse solution)
         0
     else
         /// GUI

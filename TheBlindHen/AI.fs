@@ -21,14 +21,14 @@ let quadtreeSolver (target: ImageSlice) (canvas: Canvas) : ISL list =
         let candidates =
             [
                 // Option 1: leave color as is (no-op)
-                let candidateRender = renderBlock (SimpleBlock("0", targetSlice.size, {x = 0; y = 0}, candidateColor))
+                let candidateRender = renderBlock (SimpleBlock(blockId, targetSlice.size, {x = 0; y = 0}, candidateColor))
                 let similarity1 = imageDistance targetSlice (sliceWholeImage candidateRender)
                 ([], similarity1)
             ] @ (
                 // Option 2: paint the whole block with the median color
-                let medianColor = medianColor targetSlice
+                let medianColor = averageColor targetSlice
                 if medianColor = candidateColor then [] else
-                let isl2_color = ISL.ColorBlock("0", medianColor)
+                let isl2_color = ISL.ColorBlock(blockId, medianColor)
                 let cost2_color = 5 * canvasArea / (targetSlice.size.width * targetSlice.size.height)
                 let isl2, cost2 = solve blockId targetSlice medianColor
                 [(isl2_color :: isl2, cost2_color + cost2)]
