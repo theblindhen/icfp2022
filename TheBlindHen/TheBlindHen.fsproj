@@ -5,9 +5,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Loader.fs" />
+    <Compile Include="GUI.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="JaggerJo.Avalonia.FuncUI" Version="0.5.3" />
+    <PackageReference Include="JaggerJo.Avalonia.FuncUI.DSL" Version="0.5.3" />
+    <PackageReference Include="JaggerJo.Avalonia.FuncUI.Elmish" Version="0.5.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
   </ItemGroup>
 </Project>
