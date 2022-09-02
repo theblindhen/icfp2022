@@ -22,6 +22,8 @@ type Position = {
 
 type Image = {
     size: Size
+    /// The pixels of the image, in row-major order (first row first, then
+    /// second row, etc.).
     pixels: Color[]
 }
 
