@@ -5,8 +5,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Model.fs" />
-    <Compile Include="ISL.fs" />
+    <Compile Include="Util.fs" />
+    <Compile Include="Instructions.fs" />
     <Compile Include="Loader.fs" />
+    <Compile Include="AI.fs" />
     <Compile Include="GUI.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
