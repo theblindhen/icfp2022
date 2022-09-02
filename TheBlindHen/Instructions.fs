@@ -37,3 +37,14 @@ let deparse (instructions: ISL list) =
     instructions
     |> List.map deparse_instruction
     |> String.concat "\n"
+
+let simulate_step (canvas: Canvas) (isl: ISL) : Canvas =
+    match isl with
+    | ISL.ColorBlock (blockId, color) ->
+        let block = Map.find blockId canvas.topBlocks
+        let new_block = SimpleBlock(block.id, block.size, block.lowerLeft, color)
+        { canvas with topBlocks = Map.add blockId new_block canvas.topBlocks }
+    | _ -> failwith "Not implemented"
+
+let simulate (canvas: Canvas) (instructions: ISL list) : Canvas =
+    instructions |> List.fold simulate_step canvas

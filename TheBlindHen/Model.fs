@@ -102,3 +102,11 @@ let renderBlock (block: Block) =
     let image = { size = block.size; pixels = Array.zeroCreate (block.size.width * block.size.height) }
     renderBlockInto image {x=(-block.lowerLeft.x); y=(-block.lowerLeft.y)} block
     image
+
+let renderCanvas (canvas: Canvas) =
+    // TODO: Hard-coded canvas size to 400x400
+    let image = { size = {width = 400; height = 400}
+                  pixels = Array.zeroCreate (400 * 400) }
+    canvas.topBlocks
+    |> Map.iter (fun _ block -> renderBlockInto image {x=0; y=0} block)
+    image
