@@ -6,7 +6,7 @@ open Instructions
 
 /// The number of pixels that should never be sub-divided further because
 /// painting them would cost too much compared to the improved similarity.
-let breakEvenNumberOfPixels = 81
+let breakEvenNumberOfPixels = 194
 
 /// Return the instruction which colors the input block according to the median
 /// color of the target image. Assume the target image slice conforms to the 
@@ -32,7 +32,7 @@ let quadtreeSolver (target: ImageSlice) (canvas: Canvas) : ISL list =
                 let cost2_color = 5 * canvasArea / (targetSlice.size.width * targetSlice.size.height)
                 let isl2, cost2 = solve blockId targetSlice medianColor
                 [(isl2_color :: isl2, cost2_color + cost2)]
-             ) @
+            ) @
             let targetArea = targetSlice.size.width * targetSlice.size.height
             if targetArea <= breakEvenNumberOfPixels then
                 []
