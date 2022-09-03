@@ -24,15 +24,15 @@ let writeSolution taskPath islSolution score =
     let solutionFile = sprintf "%s%d.isl" solutionDir score
     match bestCurrentSolution dirinfo with
     | None ->
-        printfn "Found a new solution (score: %d). Writing solution to %s" score solutionFile
+        printfn "%s: Found a new solution (score: %d). Writing solution." taskPath score
         IO.File.WriteAllText(solutionFile, solutionText)
     | Some(best) when score < best ->
-        printfn "Found a better solution (score: %d -> %d). Writing solution to %s" best score solutionFile
+        printfn "%s: Found a better solution (score: %d -> %d). Writing solution" taskPath best score
         IO.File.WriteAllText(solutionFile, solutionText)
+    | Some(best) when score = best ->
+        printfn "%s: The best solution has the same score (score: %d). NOT writing solution" taskPath best
     | Some(best) ->
-        printfn "A better solution already exists (score: %d). NOT writing to %s." best solutionFile
-        printfn "Solution (score: %d):" score
-        printfn "%s" solutionText
+        printfn "%s: A better solution already exists (best score: %d, current score: %d). NOT writing solution" taskPath best score
 
 type Arguments =
     | GUI
@@ -76,7 +76,7 @@ let main args =
                 | None -> AI.midpointCut
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
-            printfn "Quadtree solver on %s" taskPath
+            printfn "%s: Running quadtree solver" taskPath
             let solution =
                 AI.quadtreeSolver splitpointSelector (sliceWholeImage task) canvas
             let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
