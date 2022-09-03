@@ -23,7 +23,11 @@ let main args =
     else if args[0] = "--quadtree" then
         let taskPath = args[1]
         let task = loadPNG taskPath
-        let solution = AI.quadtreeSolver (sliceWholeImage task) canvas
+        let solution =
+            AI.quadtreeSolver
+                //AI.midpointCut
+                AI.highestDistanceCut
+                (sliceWholeImage task) canvas
         printfn "Quadtree on %s\nInstructions:\n%s" taskPath (Instructions.deparse solution)
         0
     else
