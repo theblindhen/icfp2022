@@ -2,22 +2,40 @@ module Util
 
 open Model 
 
-// This should really compute the geometric median, but that's more complicated
-// https://en.wikipedia.org/wiki/Geometric_median
-let averageColor (img: ImageSlice) : Color =
-    let mutable sum_r: int = 0
-    let mutable sum_g: int = 0
-    let mutable sum_b: int = 0
-    let mutable sum_a: int = 0
+let imageSlicePixels (img: ImageSlice) : Color[] =
+    let cols = Array.zeroCreate (img.size.width * img.size.height)
     for x in 0 .. img.size.width-1 do
         for y in 0 .. img.size.height-1 do
             let c = colorAtPos img {x=x; y=y}
-            sum_r <- sum_r + int c.r
-            sum_g <- sum_g + int c.g
-            sum_b <- sum_b + int c.b
-            sum_a <- sum_a + int c.a
-    let area = area img.size
-    {r=byte(sum_r/area); g=byte (sum_g/area); b=byte (sum_b/area); a=byte(sum_a/area)}
+            cols.[y * img.size.width + x] <- c
+    cols
+
+let averageColor_f (cols: Color seq) : (float*float*float*float) =
+    let (sum_r, sum_g, sum_b, sum_a, len) =
+        cols
+        |> Seq.fold (fun (sum_r, sum_g, sum_b, sum_a, len) col ->
+            (sum_r + float col.r, sum_g + float col.g, sum_b + float col.b, sum_a + float col.a, len+1)
+        ) (0.0, 0.0, 0.0, 0.0, 0)
+    let len = float len
+    (float sum_r/len, float sum_g/len, float sum_b/len, float sum_a/len)
+
+let averageColor (img: ImageSlice) : Color =
+    let (r_f, g_f, b_f, a_f) = averageColor_f (imageSlicePixels img)
+    {r=byte(r_f); g=byte(g_f); b=byte(b_f); a=byte(a_f)}
+
+// Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
+let colorDistance (c1: Color) (c2: Color) : float =
+    let r = int c1.r - int c2.r
+    let g = int c1.g - int c2.g
+    let b = int c1.b - int c2.b
+    let a = int c1.a - int c2.a
+    sqrt(float (r*r + g*g + b*b + a*a))
+
+let colorDistanceSeq (cols: Color seq) (est: Color) =
+    cols
+    |> Seq.map (colorDistance est)
+    |> Seq.sum
+
 
 let medianColorSeq (cols: Color seq) : Color =
     let fcols = cols
@@ -60,30 +78,47 @@ let medianColorSeq (cols: Color seq) : Color =
             loop (i+1) est'
     // Choose an initial point that is unlikely to let us ever end up on one of
     // the integral input points
-    let init_est = ( 128.234203952,
-                     127.23942323,
-                     128.9102114,
-                     127.983523269 )
+    let (avg0, avg1, avg2, avg3) = averageColor_f cols
+    let init_est = ( avg0 - 0.234203952,
+                     avg1 + 0.23942323,
+                     avg2 - 0.1102114,
+                     avg3 + 0.383523269 )
     let fmid0, fmid1, fmid2, fmid3 = loop 0 init_est
     if fmid0 < -0.1 || fmid0 > 255.1 ||
        fmid1 < -0.1 || fmid1 > 255.1 ||
        fmid2 < -0.1 || fmid2 > 255.1 || 
        fmid3 < -0.1 || fmid3 > 255.1 then
         printfn "WARNING: median_color computed an invalid color: (%f, %f, %f, %f)" fmid0 fmid1 fmid2 fmid3
-    {r=byte(System.Math.Round(fmid0));
-     g=byte(System.Math.Round(fmid1));
-     b=byte(System.Math.Round(fmid2));
-     a=byte(System.Math.Round(fmid3))}
+    let est = {r=byte(System.Math.Round(fmid0));
+               g=byte(System.Math.Round(fmid1));
+               b=byte(System.Math.Round(fmid2));
+               a=byte(System.Math.Round(fmid3))}
+    let estDist = colorDistanceSeq cols est
+    // Try taking a single neighbouring step in each direction
+    let (bestNeigh, bestNeighDist) = 
+        // These operations may overflow, but it shouldn't matter: we're
+        // testing whether we've found the minimum by trying neighbours, so
+        // no harm in trying a few other colors as well on overflow.
+        [ { est with r=byte(est.r-1uy) }
+          { est with r=byte(est.r+1uy) }
+          { est with g=byte(est.g-1uy) }
+          { est with g=byte(est.g+1uy) }
+          { est with b=byte(est.b-1uy) }
+          { est with b=byte(est.b+1uy) }
+          { est with a=byte(est.a-1uy) }
+          { est with a=byte(est.a+1uy) } ]
+        |> List.map (fun n -> 
+            let dist = colorDistanceSeq cols n
+            (n, dist))
+        |> List.minBy snd
+    if bestNeighDist < estDist then
+        bestNeigh
+    else
+        est
 
 /// Compute the median color of the image slice, using Weiszfeld's algorithm
 let medianColor (img: ImageSlice) : Color =
-    // Convert the image slice to a list of colors
-    let cols = Array.zeroCreate (img.size.width * img.size.height)
-    for x in 0 .. img.size.width-1 do
-        for y in 0 .. img.size.height-1 do
-            let c = colorAtPos img {x=x; y=y}
-            cols.[y * img.size.width + x] <- c
-    medianColorSeq cols
+    medianColorSeq (imageSlicePixels img)
 
 /// Returns the most frequent color and the number of pixels with that color
 let mostFrequentColor (img: ImageSlice) : Color * int =
@@ -107,14 +142,6 @@ let approxMedianColor (img: ImageSlice) : Color =
         c
     else
         averageColor img
-
-// Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
-let colorDistance (c1: Color) (c2: Color) : float =
-    let r = int c1.r - int c2.r
-    let g = int c1.g - int c2.g
-    let b = int c1.b - int c2.b
-    let a = int c1.a - int c2.a
-    sqrt(float (r*r + g*g + b*b + a*a))
 
 let distanceScalingFactor = 0.005
 
