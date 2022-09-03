@@ -13,15 +13,17 @@ type ISL =
 let deparse_instruction (isl: ISL) : string =
     let dir_to_str (dir: Direction) : string =
         match dir with
-        | H -> "[X]"
-        | V -> "[Y]"
+        | H -> "[Y]"
+        | V -> "[X]"
     let pos_to_string (pos: Position) : string =
         sprintf "[%d,%d]" pos.x pos.y
     let block_to_string (block: string) : string =
         sprintf "[%s]" block
+    let offset_to_str (offset: int) : string =
+        sprintf "[%d]" offset
     match isl with
     | ISL.LineCut(block, dir, offset) ->
-        sprintf "cut %s %s %d" (block_to_string block) (dir_to_str dir) offset
+        sprintf "cut %s %s %s" (block_to_string block) (dir_to_str dir) (offset_to_str offset)
     | ISL.PointCut(block, position) ->
         sprintf "cut %s %s" (block_to_string block) (pos_to_string position)
     | ISL.ColorBlock(block, color) ->
@@ -62,6 +64,19 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
                 |> Map.add slice1.id slice1
                 |> Map.add slice2.id slice2
                 |> Map.add slice3.id slice3 }, int cost
+        | _ -> failwith "Simulator: cutting a non-simple block is unimplemented"
+    | ISL.LineCut (blockId, H, offset) ->
+        let block = Map.find blockId canvas.topBlocks
+        match block with
+        | :? SimpleBlock as block ->
+            let slice_top = SimpleBlock(blockId + ".1", {width = block.size.width; height = block.size.height - (offset - block.lowerLeft.y)}, {x = block.lowerLeft.x; y = offset}, block.color)
+            let slice_bottom = SimpleBlock(blockId + ".0", {width = block.size.width; height = offset - block.lowerLeft.y}, block.lowerLeft, block.color)
+            let cost = System.Math.Round (7.0 * canvasArea / float (block.size.width * block.size.height))
+            { canvas with
+                topBlocks = canvas.topBlocks
+                |> Map.remove blockId
+                |> Map.add slice_top.id slice_top
+                |> Map.add slice_bottom.id slice_bottom }, int cost
         | _ -> failwith "Simulator: cutting a non-simple block is unimplemented"
     | _ -> failwith "Instruction not implemented"
 

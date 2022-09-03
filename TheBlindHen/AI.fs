@@ -67,6 +67,17 @@ let quadtreeSolver (splitpointSelector: ImageSlice -> Position) (target: ImageSl
             else
             // Option 3: split the block into 4 and recurse
             let splitpoint = splitpointSelector targetSlice
+            if splitpoint.x = 0 || splitpoint.x = targetSlice.size.width - 1 then
+                let cost3_cut = 7 * canvasArea / targetArea
+                if cost3_cut >= similarity1 then [] else
+                //printfn "%d, %d" splitpoint.x splitpoint.y
+                let top_slice = subslice targetSlice { width = targetSlice.size.width; height = targetSlice.size.height - splitpoint.y } { x = 0; y = splitpoint.y }
+                let bottom_slice = subslice targetSlice { width = targetSlice.size.width; height = splitpoint.y } { x = 0; y = 0 }
+                let (isl3_top, cost3_top) = solve $"{blockId}.1" top_slice candidateColor
+                let (isl3_bottom, cost3_bottom) = solve $"{blockId}.0" bottom_slice candidateColor
+                let isl3_cut = ISL.LineCut(blockId, H, splitpoint.y + targetSlice.offset.y)
+                [(isl3_cut :: isl3_top @ isl3_bottom, cost3_cut + cost3_top + cost3_bottom)]
+            else
             let cost3_cut = 10 * canvasArea / targetArea
             if cost3_cut >= similarity1 then [] else
             let slice0 = subslice targetSlice { width = splitpoint.x; height = splitpoint.y } { x = 0; y = 0 }
