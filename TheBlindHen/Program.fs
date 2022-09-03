@@ -48,40 +48,42 @@ type Arguments =
             | SplitPoint _ -> "The split point to use"
             | TaskNumber _ -> "The task number to use"
 
-and AISelector = OneLiner | QuadTree
+and AISelector = OneLiner | QuadTree | EagerSwapper
 and SplitPointSelector = Midpoint | HighestDistance
 
-type Solver = Image -> Canvas option -> Canvas -> Instructions.ISL list * int * int
+type Solver = Image -> Canvas -> Instructions.ISL list * int * int
 
 // TODO: These should take a task, not just a taskImage
-let solverOneLiner : Solver = fun targetImage initCanvas canvas ->
-    assert (initCanvas = None)
+let solverOneLiner : Solver = fun targetImage canvas ->
+    assert (Map.count canvas.topBlocks = 1) // oneLiner does not support non-blank initial canvas
     let startingBlock = canvas.topBlocks |> Map.find "0"
     ([ AI.colorBlockMedian (sliceWholeImage targetImage) startingBlock ], -1, -1)
 
-let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector targetImage initCanvas canvas ->
-    assert (initCanvas = None)
+let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector targetImage canvas ->
+    assert (Map.count canvas.topBlocks = 1) // quadTree does not support non-blank initial canvas
     AI.quadtreeSolver splitpointSelector (sliceWholeImage targetImage) canvas
+
+let solverEagerSwapper : Solver = fun targetImage canvas ->
+    Swapper.eagerSwapper targetImage canvas
 
 [<EntryPoint>]
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
     let results = parser.Parse args
     let taskNumber = results.GetResult (TaskNumber)
-    let targetImage, initCanvas =
+    let targetImage, canvas =
         let taskImagePath = sprintf "tasks/%s.png" taskNumber
         let taskInitPath = sprintf "tasks/%s.initial.json" taskNumber
         let targetImage = loadPNG taskImagePath
-        let initCanvas =
+        let canvas =
             if IO.File.Exists taskInitPath then
-                Some (loadSimpleCanvasJson taskInitPath)
+                loadSimpleCanvasJson taskInitPath
             else 
-                None
-        (targetImage, initCanvas)
-    let canvas = blankCanvas {width = 400; height = 400}
+                blankCanvas {width = 400; height = 400}
+        (targetImage, canvas)
     let (solver, solverName) = 
         match results.GetResult (AI) with
-        | None -> ((fun _ _ _ -> ([],-1,-1)), "no AI")
+        | None -> ((fun _ _ -> ([],-1,-1)), "no AI")
         | Some (OneLiner) -> (solverOneLiner, "one-line")
         | Some (QuadTree) ->
             let splitpointSelector =
@@ -90,8 +92,9 @@ let main args =
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
+        | Some EagerSwapper -> (solverEagerSwapper, "eager-swapper")
     printfn "Task %s: Running %s solver" taskNumber solverName
-    let solution, solverCost, solverSimilarity = solver targetImage initCanvas canvas
+    let solution, solverCost, solverSimilarity = solver targetImage canvas
     let (solutionCanvas, solutionCost) = Instructions.simulate canvas solution
     let solutionImage = renderCanvas solutionCanvas
     let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)

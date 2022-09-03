@@ -9,6 +9,7 @@
     <Compile Include="Instructions.fs" />
     <Compile Include="Loader.fs" />
     <Compile Include="AI.fs" />
+    <Compile Include="Swapper.fs" />
     <Compile Include="GUI.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
