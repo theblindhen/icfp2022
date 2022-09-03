@@ -82,6 +82,29 @@ let medianColor (img: ImageSlice) : Color =
             cols.[y * img.size.width + x] <- c
     medianColorSeq cols
 
+/// Returns the most frequent color and the number of pixels with that color
+let mostFrequentColor (img: ImageSlice) : Color * int =
+    let cols = Array.zeroCreate (img.size.width * img.size.height)
+    let counts = new System.Collections.Generic.Dictionary<Color, int>()
+    for x in 0 .. img.size.width-1 do
+        for y in 0 .. img.size.height-1 do
+            let c = colorAtPos img {x=x; y=y}
+            if counts.ContainsKey c then
+                counts.[c] <- counts.[c] + 1
+            else
+                counts.[c] <- 1
+    let max = counts |> Seq.maxBy (fun kv -> kv.Value)
+    max.Key, max.Value
+
+/// If the number of pixels with the most frequent color is above a certain
+/// threshold, return that color.  Otherwise, return the average color.
+let approxMedianColor (img: ImageSlice) : Color =
+    let c, n = mostFrequentColor img
+    if n > 200 then
+        c
+    else
+        averageColor img
+
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
 let colorDistance (c1: Color) (c2: Color) : float =
     let r = int c1.r - int c2.r
