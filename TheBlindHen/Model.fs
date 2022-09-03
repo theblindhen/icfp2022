@@ -11,18 +11,20 @@ type Color =
 
 
 [<Struct>]
-type Size = {
-    width: int
-    height: int
-}
+type Size =
+    { width: int
+      height: int }
+    member this.toString () =
+        sprintf "[%d, %d]" this.width this.height
 
 let area (size: Size) = size.width * size.height
 
 [<Struct>]
-type Position = {
-    x: int
-    y: int
-}
+type Position =
+    { x: int
+      y: int }
+    member this.toString () =
+        sprintf "[%d, %d]" this.x this.y
 
 type Image = {
     size: Size

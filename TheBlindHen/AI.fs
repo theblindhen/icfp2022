@@ -52,8 +52,10 @@ let midpointCut (target: ImageSlice) : int option * int option =
     let y = target.size.height / 2
     (Some x, Some y)
 
+type SplitPointSelector = ImageSlice -> int option * int option
+
 /// Returns instructions, cost, and similarity (scaled)
-let quadtreeSolver (splitpointSelector: ImageSlice -> int option * int option) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
+let quadtreeSolver (splitpointSelector: SplitPointSelector) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
     let topBlock = canvas.topBlocks |> Map.find "0"
     let canvasArea = float (topBlock.size.width * topBlock.size.height)
     /// Returns instructions, cost, and distance (not scaled)

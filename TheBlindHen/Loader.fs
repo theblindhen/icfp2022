@@ -45,3 +45,43 @@ let toPngStream (img: Image<Rgba32>) : MemoryStream =
     img.Save(imgStream, PngFormat.Instance)
     imgStream.Seek(0,  SeekOrigin.Begin) |> ignore
     imgStream
+
+
+open System.Text.Json
+
+type JsonSimpleBlock = {
+    blockId: string
+    bottomLeft: int list // Always 2 entries
+    topRight: int list   // Always 2 entries
+    color: int list      // Always 4 entries
+}
+
+type JsonSimpleCanvas = {
+    width: int
+    height: int
+    blocks: JsonSimpleBlock list 
+}
+
+let loadSimpleCanvasJson (jsonFilePath: string) =
+    let json = File.ReadAllText(jsonFilePath)
+    let jsonCanvas = JsonSerializer.Deserialize<JsonSimpleCanvas>(json)
+    let blocks: Block list = jsonCanvas.blocks |> List.map (fun b ->
+        SimpleBlock(
+            b.blockId,
+            { width = b.topRight.[0] - b.bottomLeft.[0]
+              height = b.topRight.[1] - b.bottomLeft.[1] },
+            { x = b.bottomLeft.[0]
+              y = b.bottomLeft.[1] },
+            { r = byte b.color.[0]
+              g = byte b.color.[1]
+              b = byte b.color.[2]
+              a = byte b.color.[3] })
+        )
+    { maxTopId = blocks.Length
+      size = { width = jsonCanvas.width
+               height = jsonCanvas.height }
+      topBlocks =
+        blocks
+        |> List.map (fun b -> (b.id, b))
+        |> Map.ofList 
+    }
