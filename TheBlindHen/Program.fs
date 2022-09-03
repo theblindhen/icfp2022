@@ -68,6 +68,7 @@ let main args =
             let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
             let solution_image = renderCanvas solution_canvas
             let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
+            printfn "Similarity: %d" imageSimilarity
             writeSolution taskPath solution (solution_cost + imageSimilarity)
             solution
         | Some (QuadTree) ->
