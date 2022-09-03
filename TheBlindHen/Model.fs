@@ -79,11 +79,13 @@ type ComplexBlock(id, size, lowerLeft, children) =
 /// A canvas is made out of blocks
 type Canvas = {
     maxTopId: int
+    size: Size
     topBlocks: Map<string, Block>
 }
 
 let blankCanvas size = {
     maxTopId = 0
+    size = size
     topBlocks = Map.add "0" (
             SimpleBlock("0", size, {x = 0; y = 0}, {r = 255uy; g = 255uy; b = 255uy; a = 255uy})
         ) Map.empty

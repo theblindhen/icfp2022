@@ -34,7 +34,8 @@ let main args =
         printfn "One-line solver on %s" taskPath
         let initBlock = canvas.topBlocks |> Map.find "0"
         let solution = [ AI.colorBlockMedian (sliceWholeImage task) initBlock ]
-        let solution_canvas = Instructions.simulate canvas solution
+        printfn "Instructions:\n%s" (Instructions.deparse solution)
+        let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
         let solution_image = renderCanvas solution_canvas
         let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
         printfn "Score %d (TODO: Only includes image distance)\nInstructions:\n%s" (image_distance) (Instructions.deparse solution)
@@ -48,6 +49,10 @@ let main args =
         let solution =
             AI.quadtreeSolver splitpointSelector (sliceWholeImage task) canvas
         printfn "Instructions:\n%s" (Instructions.deparse solution)
+        let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
+        let solution_image = renderCanvas solution_canvas
+        let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
+        printfn "Score: %d" (solution_cost + image_distance)
     if results.Contains GUI then
         // GUI
         let imgPath = args[0]
