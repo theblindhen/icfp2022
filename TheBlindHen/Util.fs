@@ -36,10 +36,6 @@ let medianColorSeq (cols: Color seq) : Color =
         let d3 = a3 - b3
         sqrt(d0*d0 + d1*d1 + d2*d2 + d3*d3)
     let rec loop i est =
-        if i > 100 then
-            printfn "WARNING: median_color did not converge after 100 iterations"
-            est
-        else
         let w0,w1,w2,w3,N =
             fcols |> List.fold (fun (s0, s1, s2, s3, N) c ->
                 let d = 1. / fdist c est
@@ -51,7 +47,14 @@ let medianColorSeq (cols: Color seq) : Color =
                  N + d)
             ) (0., 0., 0., 0., 0.)
         let est' = (w0/N, w1/N, w2/N, w3/N)
-        if fdist est est' < 0.01 then
+        // Experimentally, a value of 0.1 gives the same results as a value of
+        // 0.01 on the first 9 test images. A value of 1.0 gives worse results
+        // but not terrible.
+        let estDist = fdist est est'
+        if i > 100 then
+            printfn "WARNING: medianColor did not converge (dist=%f)" estDist
+            est'
+        else if estDist < 0.2 then
             est'
         else
             loop (i+1) est'
