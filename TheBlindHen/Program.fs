@@ -30,7 +30,8 @@ let writeSolution taskPath islSolution score =
         printfn "Found a better solution (score: %d -> %d). Writing solution to %s" best score solutionFile
         IO.File.WriteAllText(solutionFile, solutionText)
     | Some(best) ->
-        printfn "A better solution already exists (score: %d). Not writing a new file. Solution (score: %d):" best score
+        printfn "A better solution already exists (score: %d). NOT writing to %s." best solutionFile
+        printfn "Solution (score: %d):" score
         printfn "%s" solutionText
 
 type Arguments =
