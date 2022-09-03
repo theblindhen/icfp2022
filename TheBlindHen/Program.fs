@@ -2,6 +2,36 @@
 open Loader
 open GUI
 
+open System
+
+let bestCurrentSolution (dirinfo: IO.DirectoryInfo) =
+    // For files named like "1234.isl", pick the one with the lowest number
+    dirinfo.EnumerateFiles ()
+    |> Seq.filter (fun f -> f.Extension = ".isl")
+    |> Seq.map (fun f -> f.Name.Split('.')[0] |> int)
+    |> Seq.sort
+    |> Seq.tryHead
+
+let getBestCurrentSolution solutionDir = 
+    let dirinfo = IO.Directory.CreateDirectory solutionDir
+    bestCurrentSolution dirinfo
+
+let writeSolution taskPath islSolution score =
+    let solutionDir = $"{taskPath}.solutions/"
+    let solutionText = (Instructions.deparse islSolution)
+    let dirinfo = IO.Directory.CreateDirectory solutionDir
+    let solutionFile = sprintf "%s%d.isl" solutionDir score
+    match bestCurrentSolution dirinfo with
+    | None ->
+        printfn "Found a new solution (score: %d). Writing solution to %s" score solutionFile
+        IO.File.WriteAllText(solutionFile, solutionText)
+    | Some(best) when score < best ->
+        printfn "Found a better solution (score: %d -> %d). Writing solution to %s" best score solutionFile
+        IO.File.WriteAllText(solutionFile, solutionText)
+    | Some(best) ->
+        printfn "A better solution already exists (score: %d). Not writing a new file. Solution (score: %d):" best score
+        printfn "%s" solutionText
+
 [<EntryPoint>]
 let main args =
     if args.Length < 1 then
@@ -20,7 +50,7 @@ let main args =
         let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
         let solution_image = renderCanvas solution_canvas
         let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-        printfn "Score: %d" (solution_cost + image_distance)
+        writeSolution taskPath solution (solution_cost + image_distance)
         0
     else if args[0] = "--quadtree" then
         let taskPath = args[1]
@@ -35,7 +65,7 @@ let main args =
         let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
         let solution_image = renderCanvas solution_canvas
         let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-        printfn "Score: %d" (solution_cost + image_distance)
+        writeSolution taskPath solution (solution_cost + image_distance)
         0
     else
         /// GUI
