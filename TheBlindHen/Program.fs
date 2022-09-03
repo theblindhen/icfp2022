@@ -16,10 +16,11 @@ let main args =
         let task = loadPNG taskPath
         let initBlock = canvas.topBlocks |> Map.find "0"
         let solution = [ AI.colorBlockMedian (sliceWholeImage task) initBlock ]
-        let solution_canvas = Instructions.simulate canvas solution
+        printfn "Instructions:\n%s" (Instructions.deparse solution)
+        let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
         let solution_image = renderCanvas solution_canvas
         let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-        printfn "Score %d (TODO: Only includes image distance)\nInstructions:\n%s" (image_distance) (Instructions.deparse solution)
+        printfn "Score: %d" (solution_cost + image_distance)
         0
     else if args[0] = "--quadtree" then
         let taskPath = args[1]
@@ -27,6 +28,10 @@ let main args =
         let task = loadPNG taskPath
         let solution = AI.quadtreeSolver (sliceWholeImage task) canvas
         printfn "Instructions:\n%s" (Instructions.deparse solution)
+        let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
+        let solution_image = renderCanvas solution_canvas
+        let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
+        printfn "Score: %d" (solution_cost + image_distance)
         0
     else
         /// GUI

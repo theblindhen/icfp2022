@@ -98,4 +98,4 @@ let imageDistance (proposal: ImageSlice) (target: ImageSlice) : int =
             let c1 = colorAtPos proposal {x=x; y=y}
             let c2 = colorAtPos target {x=x; y=y}
             score <- score + colorDistance c1 c2
-    int (score * 0.005) // TODO: Should probably be round?
+    int (System.Math.Round (score * 0.005))
