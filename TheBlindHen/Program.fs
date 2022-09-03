@@ -67,8 +67,8 @@ let main args =
             let solution = [ AI.colorBlockMedian (sliceWholeImage task) initBlock ]
             let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
             let solution_image = renderCanvas solution_canvas
-            let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-            writeSolution taskPath solution (solution_cost + image_distance)
+            let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
+            writeSolution taskPath solution (solution_cost + imageSimilarity)
             solution
         | Some (QuadTree) ->
             let splitpointSelector =
@@ -77,12 +77,18 @@ let main args =
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
             printfn "Quadtree solver on %s" taskPath
-            let solution =
+            let solution, solverCost, solverSimilarity =
                 AI.quadtreeSolver splitpointSelector (sliceWholeImage task) canvas
             let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
             let solution_image = renderCanvas solution_canvas
-            let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
-            writeSolution taskPath solution (solution_cost + image_distance)
+            let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
+            writeSolution taskPath solution (solution_cost + imageSimilarity)
+            if solverCost <> solution_cost then
+                printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
+                    taskPath solverCost solution_cost
+            if solverSimilarity <> imageSimilarity then
+                printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
+                    taskPath solverSimilarity imageSimilarity
             solution
     if results.Contains GUI then
         // GUI
