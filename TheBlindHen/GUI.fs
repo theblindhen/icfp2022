@@ -48,31 +48,9 @@ module MVU =
         match msg with
         | ZoomIn -> { state with Scale = state.Scale + 1 }, Cmd.none
         | ZoomOut -> { state with Scale = max (state.Scale - 1) 1 }, Cmd.none
-        | Step i -> { state with Step = max (state.Step + i) 0 }, Cmd.none
+        | Step i -> { state with Step = min (max (state.Step + i) 0) (List.length state.Solution) }, Cmd.none
 
     let viewSolution (state: State) =
-        (*
-        state.Canvas.topBlocks
-        |> Map.toList
-        |> List.map (fun (id, block) ->
-            let blockSize, lowerLeft = block.size, block.lowerLeft
-            let borderColor = "#333333"
-            [
-                Line.create [
-                   Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
-                   Line.endPoint (float (lowerLeft.x + blockSize.width), float (CANVASHEIGHT - lowerLeft.y))
-                   Line.strokeThickness 2.0
-                   Line.stroke borderColor
-                ] :> Avalonia.FuncUI.Types.IView
-                Line.create [
-                   Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
-                   Line.endPoint (float lowerLeft.x, float (CANVASHEIGHT - (lowerLeft.y + blockSize.height)))
-                   Line.strokeThickness 2.0
-                   Line.stroke borderColor
-                ] :> Avalonia.FuncUI.Types.IView
-            ])
-        |> List.concat
-        *)
         let canvas = blankCanvas {width = 400; height = 400}
         let (solution_canvas, solution_cost) = Instructions.simulate canvas (List.take state.Step state.Solution)
         let solution_image = renderCanvas solution_canvas
@@ -81,7 +59,28 @@ module MVU =
             Image.create [
                 Image.source solution_bitmap
             ] :> Avalonia.FuncUI.Types.IView
-        ]
+        ] @ (
+            solution_canvas.topBlocks
+            |> Map.toList
+            |> List.map (fun (id, block) ->
+                let blockSize, lowerLeft = block.size, block.lowerLeft
+                let borderColor = "#333333"
+                [
+                    Line.create [
+                    Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
+                    Line.endPoint (float (lowerLeft.x + blockSize.width), float (CANVASHEIGHT - lowerLeft.y))
+                    Line.strokeThickness 1.0
+                    Line.stroke borderColor
+                    ] :> Avalonia.FuncUI.Types.IView
+                    Line.create [
+                    Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
+                    Line.endPoint (float lowerLeft.x, float (CANVASHEIGHT - (lowerLeft.y + blockSize.height)))
+                    Line.strokeThickness 1.0
+                    Line.stroke borderColor
+                    ] :> Avalonia.FuncUI.Types.IView
+                ])
+            |> List.concat
+        )
 
     let viewTarget (state: State) =
         let targetImg = Loader.toImageSharp state.Target
@@ -99,15 +98,11 @@ module MVU =
             DockPanel.children [ 
                 UniformGrid.create [
                     UniformGrid.dock Dock.Bottom
-                    UniformGrid.columns 2
+                    UniformGrid.columns 4
                     UniformGrid.children [
                         Button.create [
-                            Button.onClick (fun _ -> dispatch ZoomOut)
-                            Button.content "Zoom out"
-                        ]
-                        Button.create [
-                            Button.onClick (fun _ -> dispatch ZoomIn)
-                            Button.content "Zoom in"
+                            Button.onClick (fun _ -> dispatch (Step -10))
+                            Button.content "<<"
                         ]
                         Button.create [
                             Button.onClick (fun _ -> dispatch (Step -1))
@@ -116,6 +111,10 @@ module MVU =
                         Button.create [
                             Button.onClick (fun _ -> dispatch (Step 1))
                             Button.content ">"
+                        ]
+                        Button.create [
+                            Button.onClick (fun _ -> dispatch (Step 10))
+                            Button.content ">>"
                         ]
                     ]
                 ]
