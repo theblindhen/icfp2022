@@ -57,7 +57,7 @@ let quadtreeSolver (splitpointSelector: ImageSlice -> Position) (target: ImageSl
                 ([], 0, distance1)
             ] @ (
                 // Option 2: paint the whole block with the median color
-                let medianColor = averageColor targetSlice
+                let medianColor = approxMedianColor targetSlice
                 if medianColor = candidateColor then [] else
                 let isl2_color = ISL.ColorBlock(blockId, medianColor)
                 let cost2_color = int (System.Math.Round (5.0 * canvasArea / float targetArea))
