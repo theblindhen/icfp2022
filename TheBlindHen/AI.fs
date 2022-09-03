@@ -70,13 +70,22 @@ let quadtreeSolver (splitpointSelector: ImageSlice -> Position) (target: ImageSl
             if splitpoint.x = 0 || splitpoint.x = targetSlice.size.width - 1 then
                 let cost3_cut = 7 * canvasArea / targetArea
                 if cost3_cut >= similarity1 then [] else
-                //printfn "%d, %d" splitpoint.x splitpoint.y
                 let top_slice = subslice targetSlice { width = targetSlice.size.width; height = targetSlice.size.height - splitpoint.y } { x = 0; y = splitpoint.y }
                 let bottom_slice = subslice targetSlice { width = targetSlice.size.width; height = splitpoint.y } { x = 0; y = 0 }
                 let (isl3_top, cost3_top) = solve $"{blockId}.1" top_slice candidateColor
                 let (isl3_bottom, cost3_bottom) = solve $"{blockId}.0" bottom_slice candidateColor
                 let isl3_cut = ISL.LineCut(blockId, H, splitpoint.y + targetSlice.offset.y)
                 [(isl3_cut :: isl3_top @ isl3_bottom, cost3_cut + cost3_top + cost3_bottom)]
+            else
+            if splitpoint.y = 0 || splitpoint.y = targetSlice.size.height - 1 then
+                let cost3_cut = 7 * canvasArea / targetArea
+                if cost3_cut >= similarity1 then [] else
+                let left_slice = subslice targetSlice { width = splitpoint.x; height = targetSlice.size.height } { x = 0; y = 0 }
+                let right_slice = subslice targetSlice { width = targetSlice.size.width - splitpoint.x; height = targetSlice.size.height } { x = splitpoint.x; y = 0 }
+                let (isl3_left, cost3_left) = solve $"{blockId}.0" left_slice candidateColor
+                let (isl3_right, cost3_right) = solve $"{blockId}.1" right_slice candidateColor
+                let isl3_cut = ISL.LineCut(blockId, V, splitpoint.x + targetSlice.offset.x)
+                [(isl3_cut :: isl3_left @ isl3_right, cost3_cut + cost3_left + cost3_right)]
             else
             let cost3_cut = 10 * canvasArea / targetArea
             if cost3_cut >= similarity1 then [] else

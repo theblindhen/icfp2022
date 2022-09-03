@@ -78,8 +78,20 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
                 |> Map.add slice_top.id slice_top
                 |> Map.add slice_bottom.id slice_bottom }, int cost
         | _ -> failwith "Simulator: cutting a non-simple block is unimplemented"
+    | ISL.LineCut (blockId, V, offset) ->
+        let block = Map.find blockId canvas.topBlocks
+        match block with
+        | :? SimpleBlock as block ->
+            let slice_left = SimpleBlock(blockId + ".0", {width = offset - block.lowerLeft.x; height = block.size.height}, block.lowerLeft, block.color)
+            let slice_right = SimpleBlock(blockId + ".1", {width = block.size.width - (offset - block.lowerLeft.x); height = block.size.height}, {x = offset; y = block.lowerLeft.y}, block.color)
+            let cost = System.Math.Round (7.0 * canvasArea / float (block.size.width * block.size.height))
+            { canvas with
+                topBlocks = canvas.topBlocks
+                |> Map.remove blockId
+                |> Map.add slice_left.id slice_left
+                |> Map.add slice_right.id slice_right }, int cost
+        | _ -> failwith "Simulator: cutting a non-simple block is unimplemented"
     | _ -> failwith "Instruction not implemented"
-
 /// Returns the resulting canvas and the cost of the program
 let simulate (canvas: Canvas) (instructions: ISL list) : Canvas * int =
     instructions |> List.fold (fun (canvas, cost) isl ->
