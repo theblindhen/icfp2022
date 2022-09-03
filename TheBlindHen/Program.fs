@@ -51,6 +51,13 @@ type Arguments =
 and AISelector = OneLiner | QuadTree
 and SplitPointSelector = Midpoint | HighestDistance
 
+let solverOneLiner task canvas =
+    let initBlock = canvas.topBlocks |> Map.find "0"
+    ([ AI.colorBlockMedian (sliceWholeImage task) initBlock ], -1, -1)
+
+let solverQuadTree splitpointSelector task canvas =
+    AI.quadtreeSolver splitpointSelector (sliceWholeImage task) canvas
+
 [<EntryPoint>]
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
@@ -58,39 +65,29 @@ let main args =
     let taskPath = results.GetResult (Target)
     let task = loadPNG taskPath
     let canvas = blankCanvas {width = 400; height = 400}
-    let solution =
+    let (solver, solverName) = 
         match results.GetResult (AI) with
-        | None -> []
-        | Some (OneLiner) ->
-            printfn "One-line solver on %s" taskPath
-            let initBlock = canvas.topBlocks |> Map.find "0"
-            let solution = [ AI.colorBlockMedian (sliceWholeImage task) initBlock ]
-            let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
-            let solution_image = renderCanvas solution_canvas
-            let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
-            printfn "Similarity: %d" imageSimilarity
-            writeSolution taskPath solution (solution_cost + imageSimilarity)
-            solution
+        | None -> ((fun _ _ -> ([],-1,-1)), "no AI")
+        | Some (OneLiner) -> (solverOneLiner, "one-line")
         | Some (QuadTree) ->
             let splitpointSelector =
                 match results.GetResult (SplitPoint) with
                 | None -> AI.midpointCut
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
-            printfn "%s: Running quadtree solver" taskPath
-            let solution, solverCost, solverSimilarity =
-                AI.quadtreeSolver splitpointSelector (sliceWholeImage task) canvas
-            let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
-            let solution_image = renderCanvas solution_canvas
-            let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
-            writeSolution taskPath solution (solution_cost + imageSimilarity)
-            if solverCost <> solution_cost then
-                printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
-                    taskPath solverCost solution_cost
-            if solverSimilarity <> imageSimilarity then
-                printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
-                    taskPath solverSimilarity imageSimilarity
-            solution
+            (solverQuadTree splitpointSelector, "quad-tree")
+    printfn "%s: Running %s solver" taskPath solverName
+    let solution, solverCost, solverSimilarity = solver task canvas
+    let (solutionCanvas, solutionCost) = Instructions.simulate canvas solution
+    let solutionImage = renderCanvas solutionCanvas
+    let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solutionImage)
+    writeSolution taskPath solution (solutionCost + imageSimilarity)
+    if solverCost <> solutionCost then
+        printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
+            taskPath solverCost solutionCost
+    if solverSimilarity <> imageSimilarity then
+        printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
+            taskPath solverSimilarity imageSimilarity
     if results.Contains GUI then
         // GUI
         showGui task solution |> ignore
