@@ -90,7 +90,10 @@ let colorDistance (c1: Color) (c2: Color) : float =
     let a = int c1.a - int c2.a
     sqrt(float (r*r + g*g + b*b + a*a))
 
-let imageDistance (proposal: ImageSlice) (target: ImageSlice) : int =
+let distanceScalingFactor = 0.005
+
+/// Returns a distance, meaning it's _not_ scaled by distanceScalingFactor
+let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
     assert (proposal.size = target.size)
     let mutable score = 0.0
     for x in 0 .. proposal.size.width-1 do
@@ -98,4 +101,8 @@ let imageDistance (proposal: ImageSlice) (target: ImageSlice) : int =
             let c1 = colorAtPos proposal {x=x; y=y}
             let c2 = colorAtPos target {x=x; y=y}
             score <- score + colorDistance c1 c2
-    int (System.Math.Round (score * 0.005))
+    score
+
+// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
+let imageSimilarity (proposal: ImageSlice) (target: ImageSlice) : int =
+    int (System.Math.Round (subImageDistance proposal target * distanceScalingFactor))
