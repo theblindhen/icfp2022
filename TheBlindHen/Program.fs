@@ -27,9 +27,9 @@ let main args =
     let taskPath = results.GetResult (Target)
     let task = loadPNG taskPath
     let canvas = blankCanvas {width = 400; height = 400}
-    let solution_canvas =
+    let solution =
         match results.GetResult (AI) with
-        | None -> canvas
+        | None -> []
         | Some (OneLiner) ->
             /// AI dump to console
             printfn "One-line solver on %s" taskPath
@@ -40,7 +40,7 @@ let main args =
             let solution_image = renderCanvas solution_canvas
             let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
             printfn "Score %d (TODO: Only includes image distance)\nInstructions:\n%s" (image_distance) (Instructions.deparse solution)
-            solution_canvas
+            solution
         | Some (QuadTree) ->
             let splitpointSelector =
                 match results.GetResult (SplitPoint) with
@@ -55,8 +55,8 @@ let main args =
             let solution_image = renderCanvas solution_canvas
             let image_distance = Util.imageDistance (sliceWholeImage task) (sliceWholeImage solution_image)
             printfn "Score: %d" (solution_cost + image_distance)
-            solution_canvas
+            solution
     if results.Contains GUI then
         // GUI
-        showGui task solution_canvas |> ignore
+        showGui task solution |> ignore
     0

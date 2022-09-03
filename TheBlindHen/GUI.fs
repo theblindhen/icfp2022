@@ -6,15 +6,16 @@ let CANVASHEIGHT = 400
 
 open System
 open Model
+open Instructions
 
 type Globals = {
     mutable target: Image option
-    mutable canvas: Canvas option
+    mutable solution: ISL list
 }
 
 let globals = {
     target = None
-    canvas = None
+    solution = []
 }
 
 module MVU =
@@ -27,17 +28,19 @@ module MVU =
 
     type State = {
         Target: Model.Image
-        Canvas: Model.Canvas
+        Solution: ISL list
         Scale: int
+        Step: int
     }
 
-    type Msg = ZoomIn | ZoomOut
+    type Msg = ZoomIn | ZoomOut | Step of int
 
-    let init (target: Model.Image, canvas: Model.Canvas): State * Cmd<Msg> =
+    let init (target: Model.Image, solution: ISL list): State * Cmd<Msg> =
         {
             Target = target
-            Canvas = canvas
+            Solution = solution
             Scale = 1
+            Step = 0
         },
         Cmd.none
 
@@ -45,27 +48,40 @@ module MVU =
         match msg with
         | ZoomIn -> { state with Scale = state.Scale + 1 }, Cmd.none
         | ZoomOut -> { state with Scale = max (state.Scale - 1) 1 }, Cmd.none
+        | Step i -> { state with Step = max (state.Step + i) 0 }, Cmd.none
 
-    let viewCanvas (state: State) =
+    let viewSolution (state: State) =
+        (*
         state.Canvas.topBlocks
         |> Map.toList
         |> List.map (fun (id, block) ->
             let blockSize, lowerLeft = block.size, block.lowerLeft
+            let borderColor = "#333333"
             [
                 Line.create [
                    Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
                    Line.endPoint (float (lowerLeft.x + blockSize.width), float (CANVASHEIGHT - lowerLeft.y))
                    Line.strokeThickness 2.0
-                   Line.stroke "#000000"
+                   Line.stroke borderColor
                 ] :> Avalonia.FuncUI.Types.IView
                 Line.create [
                    Line.startPoint (float lowerLeft.x, float (CANVASHEIGHT - lowerLeft.y))
                    Line.endPoint (float lowerLeft.x, float (CANVASHEIGHT - (lowerLeft.y + blockSize.height)))
                    Line.strokeThickness 2.0
-                   Line.stroke "#000000"
+                   Line.stroke borderColor
                 ] :> Avalonia.FuncUI.Types.IView
             ])
         |> List.concat
+        *)
+        let canvas = blankCanvas {width = 400; height = 400}
+        let (solution_canvas, solution_cost) = Instructions.simulate canvas (List.take state.Step state.Solution)
+        let solution_image = renderCanvas solution_canvas
+        let solution_bitmap = new Avalonia.Media.Imaging.Bitmap(Loader.toImageSharp solution_image |> Loader.toPngStream)
+        [
+            Image.create [
+                Image.source solution_bitmap
+            ] :> Avalonia.FuncUI.Types.IView
+        ]
 
     let viewTarget (state: State) =
         let targetImg = Loader.toImageSharp state.Target
@@ -93,12 +109,27 @@ module MVU =
                             Button.onClick (fun _ -> dispatch ZoomIn)
                             Button.content "Zoom in"
                         ]
+                        Button.create [
+                            Button.onClick (fun _ -> dispatch (Step -1))
+                            Button.content "<"
+                        ]
+                        Button.create [
+                            Button.onClick (fun _ -> dispatch (Step 1))
+                            Button.content ">"
+                        ]
                     ]
                 ]
                 Canvas.create [
                     Canvas.background "#2c3e50"
-                    Canvas.children (viewTarget state @ viewCanvas state)
-                ]       
+                    Canvas.left 0
+                    Canvas.width 400
+                    Canvas.children (viewTarget state)
+                ]
+                Canvas.create [
+                    Canvas.background "#2c3e50"
+                    Canvas.left 400
+                    Canvas.children (viewSolution state)
+                ]
             ]
         ]       
 
@@ -118,7 +149,7 @@ type MainWindow() as this =
 
         Program.mkProgram MVU.init MVU.update MVU.view
         |> Program.withHost this
-        |> Program.runWith (Option.get globals.target, Option.get globals.canvas)
+        |> Program.runWith (Option.get globals.target, globals.solution)
 
 type App() =
     inherit Application()
@@ -133,9 +164,9 @@ type App() =
             desktopLifetime.MainWindow <- MainWindow()
         | _ -> ()
 
-let showGui target canvas =
+let showGui target solution =
     globals.target <- Some target
-    globals.canvas <- Some canvas
+    globals.solution <- solution
     AppBuilder
         .Configure<App>()
         .UsePlatformDetect()
