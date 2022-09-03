@@ -6,7 +6,7 @@ open Instructions
 
 /// The number of pixels that should never be sub-divided further because
 /// painting them would cost too much compared to the improved similarity.
-let breakEvenNumberOfPixels = 81
+let breakEvenNumberOfPixels = 194
 
 /// Return the instruction which colors the input block according to the median
 /// color of the target image. Assume the target image slice conforms to the 
@@ -45,7 +45,6 @@ let midpointCut (target: ImageSlice) : Position =
 let quadtreeSolver (splitpointSelector: ImageSlice -> Position) (target: ImageSlice) (canvas: Canvas) : ISL list =
     let topBlock = canvas.topBlocks |> Map.find "0"
     let canvasArea = topBlock.size.width * topBlock.size.height
-    let n = ref 0
     let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int =
         let candidateRender = renderBlock (SimpleBlock(blockId, targetSlice.size, {x = 0; y = 0}, candidateColor))
         let similarity1 = imageDistance targetSlice (sliceWholeImage candidateRender)
@@ -61,7 +60,7 @@ let quadtreeSolver (splitpointSelector: ImageSlice -> Position) (target: ImageSl
                 let cost2_color = 5 * canvasArea / (targetSlice.size.width * targetSlice.size.height)
                 let isl2, cost2 = solve blockId targetSlice medianColor
                 [(isl2_color :: isl2, cost2_color + cost2)]
-             ) @
+            ) @
             let targetArea = targetSlice.size.width * targetSlice.size.height
             if targetArea <= breakEvenNumberOfPixels || targetSlice.size.width <= 1 || targetSlice.size.height <= 1 then
                 []
@@ -82,5 +81,4 @@ let quadtreeSolver (splitpointSelector: ImageSlice -> Position) (target: ImageSl
             [(isl3_cut :: isl3_0 @ isl3_1 @ isl3_2 @ isl3_3, cost3_cut + cost3_0 + cost3_1 + cost3_2 + cost3_3)]
         List.minBy (fun (_, penalty) -> penalty) candidates
     let res = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
-    printfn "%d" !n
     fst res
