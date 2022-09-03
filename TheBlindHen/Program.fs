@@ -26,7 +26,11 @@ let main args =
         let taskPath = args[1]
         printfn "Quadtree solver on %s" taskPath
         let task = loadPNG taskPath
-        let solution = AI.quadtreeSolver (sliceWholeImage task) canvas
+        let solution =
+            AI.quadtreeSolver
+                //AI.midpointCut
+                AI.highestDistanceCut
+                (sliceWholeImage task) canvas
         printfn "Instructions:\n%s" (Instructions.deparse solution)
         let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
         let solution_image = renderCanvas solution_canvas
