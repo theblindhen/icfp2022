@@ -106,7 +106,7 @@ let approxMedianColor (img: ImageSlice) : Color =
     if n > 200 then
         c
     else
-        averageColor img
+        medianColor img
 
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
 let colorDistance (c1: Color) (c2: Color) : float =
