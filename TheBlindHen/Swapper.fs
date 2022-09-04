@@ -128,7 +128,9 @@ let swapsFromAssignment (blockMap: Map<int, SimpleBlock>) (assignment: Map<int, 
     let positions = Map.keys blockMap |> List.ofSeq |> List.sort
     assignment
     |> Map.toSeq
-    |> Seq.fold (fun (blockMap: Map<int, SimpleBlock>, swaps) (posId, assColor) ->
+    |> List.ofSeq
+    |> List.sortBy (fun (posId, _) -> posId)
+    |> List.fold (fun (blockMap: Map<int, SimpleBlock>, swaps) (posId, assColor) ->
         let currentColor = blockMap[posId].color
         if currentColor = assColor then
             (blockMap, swaps)
@@ -136,12 +138,15 @@ let swapsFromAssignment (blockMap: Map<int, SimpleBlock>) (assignment: Map<int, 
             let swapPosId =
                 // Look for a later position that has a block of the correct
                 // color and whose assignment is the current color.
-                // If no such exists, just choose one of the correct color.
+                // If no such exists, choose one of the correct color which is
+                // not already placed at a correct position.
                 let laterPositions = positions |> List.filter (fun p -> p > posId) in
                 match List.tryFind (fun id -> blockMap[id].color = assColor && assignment[id] = currentColor) laterPositions with
                 | Some p -> p
                 | None ->
-                    match List.tryFind (fun id -> blockMap[id].color = assColor) laterPositions with
+                    match List.tryFind (fun id ->
+                        let other = blockMap[id]
+                        other.color = assColor && other.color <> assignment[id]) laterPositions with
                     | Some p -> p
                     | None -> failwith "No position found to swap with"
             let (blockMap, swap) = swapBlocks blockMap posId swapPosId
@@ -203,4 +208,18 @@ let assignSwapper (targetImage: Image) (canvas: Canvas) =
     let swaps = swapsFromAssignment blockMap assignment
     let (postSwapCanvas, _) = simulate canvas swaps
     let postColorize = AI.colorCanvasMedianWhereBeneficial targetImage postSwapCanvas
+    printfn "Swapper stats:"
+    printfn "\tPositions: %d" (Map.count positions)
+    printfn "\tColors: %d" (List.length colors)
+    printfn "\tSwap instructions: %d" (List.length swaps)
+    printfn "\tColor instructions: %d" (List.length postColorize)
+    let reassignments =
+        assignment
+        |> Map.toSeq
+        |> Seq.map (fun (posId, color) -> blockMap[posId].color = color)
+        |> Seq.filter (fun b -> not b)
+        |> Seq.length
+    printfn "\tReassignments: %d" reassignments
+    printfn "\tSwap efficiency: %f" (
+        float (List.length swaps) / float reassignments)
     (swaps @ postColorize, None)
