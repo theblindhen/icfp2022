@@ -154,6 +154,9 @@ let singleColorDistance (proposal: Color) (target: ImageSlice) : float =
             score <- score + colorDistance proposal c2
     score
 
+let singleColorSimilarity (proposal: Color) (target: ImageSlice) : int =
+    int (System.Math.Round (singleColorDistance proposal target * distanceScalingFactor))
+
 /// Returns a distance, meaning it's _not_ scaled by distanceScalingFactor
 let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
     assert (proposal.size = target.size)

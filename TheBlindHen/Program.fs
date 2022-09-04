@@ -56,9 +56,11 @@ and SplitPointSelector = Midpoint | HighestDistance
 type Solver = Image -> Canvas -> Instructions.ISL list * (int * int) option
 
 let solverOneLiner : Solver = fun targetImage canvas ->
-    assert (Map.count canvas.topBlocks = 1) // oneLiner does not support non-blank initial canvas
-    let startingBlock = canvas.topBlocks |> Map.find "0"
-    ([ AI.colorBlockMedian (sliceWholeImage targetImage) startingBlock ], None)
+    if Map.count canvas.topBlocks > 1 then
+        ([], None) // oneLiner does not support non-blank initial canvas
+    else
+    let startingBlock = canvas.topBlocks |> Map.find "0" :?> SimpleBlock
+    (AI.colorBlockMedianIfBeneficial (sliceWholeImage targetImage) canvas startingBlock, None)
 
 let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // quadTree does not support non-blank initial canvas

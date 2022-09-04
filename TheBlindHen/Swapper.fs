@@ -16,7 +16,9 @@ let positionMap (canvas: Canvas) =
         |> List.ofSeq
         |> List.sortBy (fun b -> b.lowerLeft.y * canvas.size.width + b.lowerLeft.x)
         |> Seq.fold (fun (n, blockMap, positionMap) block ->
-                (n+1, Map.add n (block :?> SimpleBlock) blockMap, Map.add block.lowerLeft n positionMap)
+                (n+1,
+                Map.add n (block :?> SimpleBlock) blockMap,
+                Map.add n (block.lowerLeft, block.size) positionMap)
             ) (0, Map.empty, Map.empty)
     (blockMap, positions)
 
@@ -150,7 +152,7 @@ let swapsFromAssignment (blockMap: Map<int, SimpleBlock>) (assignment: Map<int, 
 
 let assignSwapper (targetImage: Image) (canvas: Canvas) =
     assertAllBlockSameSize canvas
-    let blockMap, _ = positionMap canvas
+    let blockMap, positions = positionMap canvas
     let colorToBlockIds =
         Map.values canvas.topBlocks
         |> Seq.map (fun b -> (b :?> SimpleBlock).color, b.id)
@@ -158,18 +160,47 @@ let assignSwapper (targetImage: Image) (canvas: Canvas) =
         |> Seq.map (fun (color, idList) -> color, idList |> Seq.map snd |> List.ofSeq)
         |> Map.ofSeq
     let colors = Map.keys colorToBlockIds |> List.ofSeq
+    // For each position, what would it cost to have the median color there
+    let medianColorCosts =
+        positions
+        |> Map.toSeq
+        |> Seq.map (fun (posId, (lowerLeft, size)) ->
+            let imageSlice = sliceImage targetImage size lowerLeft
+            let medianColor = Util.medianColor imageSlice
+            let similarityCost = Util.singleColorSimilarity medianColor imageSlice
+            let colorizeCost = islCost canvas ISLOps.ColorBlock size
+            (posId, float (similarityCost + colorizeCost)))
+        |> Map.ofSeq
+    // The cost of having a particular color at that position
+    // This is computed as
+    //     min(cost of having that color, cost of having the median color)
+    //   + estimated cost of swapping that color in at that position
+    // The cost of having the median color includes the distance and the
+    // instruction cost of assigning the median value.
+    // The estimated cost of swapping is 0 if the color is already present,
+    // and a heuristic multiplied by the swap instruction cost otherwise.
+    // TODO: Our estimate of swapping cost may be improved by factoring in
+    // the number of positions of the current and the target color
     let posColorCosts =
+        let swapCostMultiplier = 1.0 - 1.0/float(List.length colors)
         blockMap
         |> Map.map (fun posId block ->
             let target = sliceImage targetImage block.size block.lowerLeft
             colors
             |> List.map (fun color ->
-                let cost = Util.singleColorDistance color target
-                color, cost)
+                let thisColorCost = float (Util.singleColorSimilarity color target)
+                let medianColorCost = float medianColorCosts[posId]
+                let swapCost =
+                    if block.color = color then 0.
+                    else swapCostMultiplier * float (islCost canvas ISLOps.SwapBlocks block.size)
+                color, swapCost + System.Math.Min (thisColorCost, medianColorCost))
             |> Map.ofSeq)
     let assignment = computeColorAssignment colorToBlockIds posColorCosts
     // printfn "Assignments:"
     // assignment |> Map.iter (fun posId color ->
     //     printfn "\t%d assigned color %s" posId (color.toString()))
     assertConformalAssignment colorToBlockIds assignment
-    (swapsFromAssignment blockMap assignment, None)
+    let swaps = swapsFromAssignment blockMap assignment
+    let (postSwapCanvas, _) = simulate canvas swaps
+    let postColorize = AI.colorCanvasMedianWhereBeneficial targetImage postSwapCanvas
+    (swaps @ postColorize, None)
