@@ -156,13 +156,20 @@ let singleColorDistance (proposal: Color) (target: ImageSlice) : float =
 
 /// Returns a distance, meaning it's _not_ scaled by distanceScalingFactor
 let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
-    assert (proposal.size = target.size)
+    assert (proposal.size = target.size && Array.length target._img.pixels = Array.length proposal._img.pixels)
     let mutable score = 0.0
-    for x in 0 .. proposal.size.width-1 do
-        for y in 0 .. proposal.size.height-1 do
-            let c1 = colorAtPos proposal {x=x; y=y}
-            let c2 = colorAtPos target {x=x; y=y}
+    for i in 0 .. Array.length target._img.pixels do
+            let c1 = proposal._img.pixels.[i]
+            let c2 = target._img.pixels.[i]
             score <- score + colorDistance c1 c2
+    score
+
+/// Returns a distance, meaning it's _not_ scaled by distanceScalingFactor
+let subImageColorDistance (proposedColor: Color) (target: ImageSlice): float =
+    let mutable score = 0.0
+    for i in 0 .. Array.length target._img.pixels do
+        let targetColor = target._img.pixels.[i]
+        score <- score + colorDistance proposedColor targetColor
     score
 
 /// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
