@@ -40,6 +40,7 @@ type Arguments =
     | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
     | SplitPoint of SplitPointSelector option
+    | Repetitions of int option
     | MergeAI of AISelector option
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
@@ -49,6 +50,7 @@ type Arguments =
             | GUI -> "Show the GUI"
             | AI _ -> "The AI to use"
             | SplitPoint _ -> "The split point to use"
+            | Repetitions _ -> "The number of repetitions"
             | TaskPath _ -> "The task png path to use"
             | Verbose _ -> "Print more information"
             | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
@@ -121,7 +123,12 @@ let main args =
         | MCTS -> (solverMCTS, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
-        | Random -> (rerunSolver 100 solverRandom, "random")
+        | Random ->
+            let repetitions =
+                match results.GetResult (Repetitions) with
+                | None -> 1
+                | Some n -> n
+            (rerunSolver repetitions solverRandom, "random")
         | MergeMeta ->
             match results.GetResult (MergeAI) with
             | None -> failwith "MergeMeta requires a MergeAI argument"
