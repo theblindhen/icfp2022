@@ -14,14 +14,12 @@ let bestCurrentSolution (dirinfo: IO.DirectoryInfo) =
     |> Seq.sort
     |> Seq.tryHead
 
-let getBestCurrentSolution solutionDir = 
-    let dirinfo = IO.Directory.CreateDirectory solutionDir
-    bestCurrentSolution dirinfo
+let getSolutionDir taskPath = $"{taskPath}.solutions/"
 
-let writeSolution taskPath islSolution score =
-    let solutionDir = $"{taskPath}.solutions/"
-    let solutionText = (deparse islSolution)
+let writeSolutionIfBetter taskPath islSolution score =
+    let solutionDir = getSolutionDir taskPath
     let dirinfo = IO.Directory.CreateDirectory solutionDir
+    let solutionText = (deparse islSolution)
     let solutionFile = sprintf "%s%d.isl" solutionDir score
     match bestCurrentSolution dirinfo with
     | None ->
@@ -39,6 +37,7 @@ type Arguments =
     | GUI
     | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
+    | OptiTrace
     | SplitPoint of SplitPointSelector option
     | Repetitions of int option
     | MergeAI of AISelector option
@@ -49,6 +48,7 @@ type Arguments =
             match s with
             | GUI -> "Show the GUI"
             | AI _ -> "The AI to use"
+            | OptiTrace _ -> "Apply opti-tracer to the generated solution. If no AI set, apply to the best solution on disk."
             | SplitPoint _ -> "The split point to use"
             | Repetitions _ -> "The number of repetitions"
             | TaskPath _ -> "The task png path to use"
@@ -57,6 +57,17 @@ type Arguments =
 
 and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeMeta
 and SplitPointSelector = Midpoint | HighestDistance
+
+let loadBestSolution taskPath =
+    let solutionDir = getSolutionDir taskPath
+    let dirinfo = IO.Directory.CreateDirectory solutionDir
+    match bestCurrentSolution dirinfo with
+    | None -> failwith "No solution found"
+    | Some(best) ->
+        let solutionFile = sprintf "%s%d.isl" solutionDir best
+        failwith "Not implemented: loadBestSolution"
+        // IO.File.ReadAllText(solutionFile)
+        // |> parse
 
 let solverOneLiner : Solver = fun targetImage canvas ->
     if Map.count canvas.topBlocks > 1 then
@@ -93,6 +104,26 @@ let rerunSolver n (solver: Solver) img canvas =
             bestSolution <- solution
             lowestCosts <- costs
     bestSolution, lowestCosts
+
+let scoreSolution (targetImage: Image) (initCanvas: Canvas) (solution: ISL list) =
+    let (solutionCanvas, solutionCost) = simulate initCanvas solution
+    let solutionImage = renderCanvas solutionCanvas
+    let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
+    (solutionCost, imageSimilarity)
+
+let runAndScoreSolver taskPath (targetImage: Image) (initCanvas: Canvas) (solver: Solver) =
+    let solution, solverComputedCostOpt = solver targetImage initCanvas
+    let solutionCost, imageSimilarity = scoreSolution targetImage initCanvas solution
+    match solverComputedCostOpt with
+    | None -> ()
+    | Some (solverCost, solverSimilarity) ->
+        if solverCost <> solutionCost then
+            printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
+                taskPath solverCost solutionCost
+        if solverSimilarity <> imageSimilarity then
+            printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
+                taskPath solverSimilarity imageSimilarity
+    solution
 
 [<EntryPoint>]
 let main args =
@@ -137,27 +168,26 @@ let main args =
                 let innerSolver, innerSolverName = getSolver mergeAI
                 (Merger.mergeMetaSolver innerSolver, $"merge-meta({innerSolverName})")
     let (solver, solverName) =
-        match results.GetResult (AI) with
+        match results.GetResult (AI, None) with
         | None -> ((fun _ _ -> ([],None)), "no AI")
         | Some ai -> getSolver ai
-    printfn "Task %s: Running %s solver" taskPath solverName
-    let solution, goodnessOpt = solver targetImage initCanvas
-    let (solutionCanvas, solutionCost) = simulate initCanvas solution
-    let solutionImage = renderCanvas solutionCanvas
-    let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
+    // Run the AI to get a solution
+    let mutable solution =
+        if solverName = "no AI" then
+            loadBestSolution taskPath
+        else
+            printfn "Task %s: Running %s solver" taskPath solverName
+            runAndScoreSolver taskPath targetImage initCanvas solver
+    // Optionally optimize the solution
+    if results.Contains OptiTrace then
+        solution <- OptiTrace.optiColorTraceNaive targetImage initCanvas solution
+    // Run the simulator to get the final score
+    let (solutionScore, imageSimilarity) = scoreSolution targetImage initCanvas solution
+    // Write it to disk if it was better
+    writeSolutionIfBetter taskPath solution (solutionScore + imageSimilarity)
+    // For the user: verbose output and/or GUI
     if results.Contains Verbose then
         printfn "Instructions generated:\n%s" (deparse solution)
-    writeSolution taskPath solution (solutionCost + imageSimilarity)
-    match goodnessOpt with
-    | None -> ()
-    | Some (solverCost, solverSimilarity) ->
-        if solverCost <> solutionCost then
-            printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
-                taskPath solverCost solutionCost
-        if solverSimilarity <> imageSimilarity then
-            printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
-                taskPath solverSimilarity imageSimilarity
     if results.Contains GUI then
-        // GUI
         showGui initCanvas targetImage solution |> ignore
     0

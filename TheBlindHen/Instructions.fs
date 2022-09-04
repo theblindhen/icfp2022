@@ -84,7 +84,7 @@ let islCost (canvas: Canvas) (islOp: ISLOps) (operationSize: Size) =
 let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
     match isl with
     | ISL.ColorBlock (blockId, color) ->
-        let block = Map.find blockId canvas.topBlocks
+        let block = canvas.topBlocks[blockId]
         let new_block = SimpleBlock(block.id, block.size, block.lowerLeft, color)
         let cost = islCost canvas ISLOps.ColorBlock block.size
         { canvas with topBlocks = Map.add blockId new_block canvas.topBlocks }, cost

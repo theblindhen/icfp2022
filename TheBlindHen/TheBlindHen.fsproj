@@ -10,6 +10,7 @@
     <Compile Include="Util.fs" />
     <Compile Include="Instructions.fs" />
     <Compile Include="Loader.fs" />
+    <Compile Include="OptiTrace.fs" />
     <Compile Include="AI.fs" />
     <Compile Include="Swapper.fs" />
     <Compile Include="Merger.fs" />
