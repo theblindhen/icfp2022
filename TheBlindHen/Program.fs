@@ -121,7 +121,7 @@ let main args =
         | MCTS -> (solverMCTS, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
-        | Random -> (rerunSolver 10_000 solverRandom, "random")
+        | Random -> (rerunSolver 100 solverRandom, "random")
         | MergeMeta ->
             match results.GetResult (MergeAI) with
             | None -> failwith "MergeMeta requires a MergeAI argument"
