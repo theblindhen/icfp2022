@@ -19,9 +19,26 @@ let averageColor_f (cols: Color seq) : (float*float*float*float) =
     let len = float len
     (float sum_r/len, float sum_g/len, float sum_b/len, float sum_a/len)
 
+let averageColorOfImg (img: ImageSlice) : (float*float*float*float) =
+    let mutable sum_r, sum_h, sum_b, sum_a, len = 0L, 0L, 0L, 0L, 0L
+    for y in 0 .. img.size.height-1 do
+        for x in 0 .. img.size.width-1 do
+            let c = colorAtPos img {x=x; y=y}
+            sum_r <- sum_r + int64 c.r
+            sum_h <- sum_h + int64 c.g
+            sum_b <- sum_b + int64 c.b
+            sum_a <- sum_a + int64 c.a
+            len <- len + 1L
+    (
+        System.Math.Round(float sum_r / float len),
+        System.Math.Round(float sum_h / float len),
+        System.Math.Round(float sum_b / float len),
+        System.Math.Round(float sum_a / float len)
+    )
+
 let averageColor (img: ImageSlice) : Color =
-    let (r_f, g_f, b_f, a_f) = averageColor_f (imageSlicePixels img)
-    {r=byte(r_f); g=byte(g_f); b=byte(b_f); a=byte(a_f)}
+    let (r_f, g_f, b_f, a_f) = averageColorOfImg img
+    {r=int(r_f); g=int(g_f); b=int(b_f); a=int(a_f)}
 
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
 let colorDistance (c1: Color) (c2: Color) : float =
@@ -42,7 +59,7 @@ let medianColorSeq (cols: Color seq) : Color =
                 |> List.map (fun c -> (float c.r, float c.g, float c.b, float c.a))
     if fcols.Length = 0 then
         printfn "WARNING: medianColorSeq called with empty list"
-        {r=0uy; g=0uy; b=0uy; a=0uy}
+        {r=0; g=0; b=0; a=0}
     elif fcols.Length = 1 then
         cols |> Seq.head
     else
@@ -88,24 +105,24 @@ let medianColorSeq (cols: Color seq) : Color =
        fmid2 < -0.1 || fmid2 > 255.1 || 
        fmid3 < -0.1 || fmid3 > 255.1 then
         printfn "WARNING: median_color computed an invalid color: (%f, %f, %f, %f)" fmid0 fmid1 fmid2 fmid3
-    let est = {r=byte(System.Math.Round(fmid0));
-               g=byte(System.Math.Round(fmid1));
-               b=byte(System.Math.Round(fmid2));
-               a=byte(System.Math.Round(fmid3))}
+    let est = {r=int(System.Math.Round(fmid0));
+               g=int(System.Math.Round(fmid1));
+               b=int(System.Math.Round(fmid2));
+               a=int(System.Math.Round(fmid3))}
     let estDist = colorDistanceSeq cols est
     // Try taking a single neighbouring step in each direction
     let (bestNeigh, bestNeighDist) = 
         // These operations may overflow, but it shouldn't matter: we're
         // testing whether we've found the minimum by trying neighbours, so
         // no harm in trying a few other colors as well on overflow.
-        [ { est with r=byte(est.r-1uy) }
-          { est with r=byte(est.r+1uy) }
-          { est with g=byte(est.g-1uy) }
-          { est with g=byte(est.g+1uy) }
-          { est with b=byte(est.b-1uy) }
-          { est with b=byte(est.b+1uy) }
-          { est with a=byte(est.a-1uy) }
-          { est with a=byte(est.a+1uy) } ]
+        [ { est with r=int(est.r-1) }
+          { est with r=int(est.r+1) }
+          { est with g=int(est.g-1) }
+          { est with g=int(est.g+1) }
+          { est with b=int(est.b-1) }
+          { est with b=int(est.b+1) }
+          { est with a=int(est.a-1) }
+          { est with a=int(est.a+1) } ]
         |> List.map (fun n -> 
             let dist = colorDistanceSeq cols n
             (n, dist))
@@ -121,10 +138,9 @@ let medianColor (img: ImageSlice) : Color =
 
 /// Returns the most frequent color and the number of pixels with that color
 let mostFrequentColor (img: ImageSlice) : Color * int =
-    let cols = Array.zeroCreate (img.size.width * img.size.height)
-    let counts = new System.Collections.Generic.Dictionary<Color, int>()
-    for x in 0 .. img.size.width-1 do
-        for y in 0 .. img.size.height-1 do
+    let counts = new System.Collections.Generic.Dictionary<Color, int>(img.size.height * img.size.width)
+    for y in 0 .. img.size.height-1 do
+        for x in 0 .. img.size.width-1 do
             let c = colorAtPos img {x=x; y=y}
             if counts.ContainsKey c then
                 counts.[c] <- counts.[c] + 1
@@ -166,6 +182,9 @@ let singleColorDistance (proposal: Color) (target: ImageSlice) : float =
             score <- score + colorDistance proposal c2
     score
 
+let singleColorSimilarity (proposal: Color) (target: ImageSlice) : int =
+    int (System.Math.Round (singleColorDistance proposal target * distanceScalingFactor))
+
 /// Returns a distance, meaning it's _not_ scaled by distanceScalingFactor
 let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
     assert (proposal.size = target.size)
@@ -180,3 +199,29 @@ let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
 /// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
 let imageSimilarity (proposal: ImageSlice) (target: ImageSlice) : int =
     distanceToSimilarity (subImageDistance proposal target)
+
+/// If the canvas is sub-divided as a grid, return the size of the grid
+/// elements, and the number of horizontal and vertical grid elements
+let canvasGridInfo canvas : GridInfo option =
+    let b0 = canvas.topBlocks["0"]
+    match Map.values canvas.topBlocks |> Seq.tryFind (fun b -> b.size <> b0.size) with
+    | Some _ -> None
+    | None ->
+        Some ({
+            cellSize = b0.size;
+            dimensions = { width = canvas.size.width / b0.size.width;
+                           height = canvas.size.height / b0.size.height } })
+
+/// Create a permanent numbering of each location of a block in the canvas.
+/// This is mainly used for initialized grid-like canvases
+let positionMap (canvas: Canvas) =
+    let (_, blockMap, positions) =
+        Map.values canvas.topBlocks
+        |> List.ofSeq
+        |> List.sortBy (fun b -> b.lowerLeft.y * canvas.size.width + b.lowerLeft.x)
+        |> Seq.fold (fun (n, blockMap, positionMap) block ->
+                (n+1,
+                Map.add n (block :?> SimpleBlock) blockMap,
+                Map.add n (block.lowerLeft, block.size) positionMap)
+            ) (0, Map.empty, Map.empty)
+    (blockMap, positions)

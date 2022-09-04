@@ -2,6 +2,7 @@
 open Model
 open Loader
 open GUI
+open Instructions
 
 open System
 
@@ -19,7 +20,7 @@ let getBestCurrentSolution solutionDir =
 
 let writeSolution taskPath islSolution score =
     let solutionDir = $"{taskPath}.solutions/"
-    let solutionText = (Instructions.deparse islSolution)
+    let solutionText = (deparse islSolution)
     let dirinfo = IO.Directory.CreateDirectory solutionDir
     let solutionFile = sprintf "%s%d.isl" solutionDir score
     match bestCurrentSolution dirinfo with
@@ -36,8 +37,10 @@ let writeSolution taskPath islSolution score =
 
 type Arguments =
     | GUI
+    | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
     | SplitPoint of SplitPointSelector option
+    | MergeAI of AISelector option
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
     interface IArgParserTemplate with
@@ -47,17 +50,18 @@ type Arguments =
             | AI _ -> "The AI to use"
             | SplitPoint _ -> "The split point to use"
             | TaskPath _ -> "The task png path to use"
+            | Verbose _ -> "Print more information"
+            | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
 
-and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper
+and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeMeta
 and SplitPointSelector = Midpoint | HighestDistance
 
-type Solver = Image -> Canvas -> Instructions.ISL list * (int * int) option
-
-// TODO: These should take a task, not just a taskImage
 let solverOneLiner : Solver = fun targetImage canvas ->
-    assert (Map.count canvas.topBlocks = 1) // oneLiner does not support non-blank initial canvas
-    let startingBlock = canvas.topBlocks |> Map.find "0"
-    ([ AI.colorBlockMedian (sliceWholeImage targetImage) startingBlock ], None)
+    if Map.count canvas.topBlocks > 1 then
+        ([], None) // oneLiner does not support non-blank initial canvas
+    else
+    let startingBlock = canvas.topBlocks |> Map.find "0" :?> SimpleBlock
+    (AI.colorBlockMedianIfBeneficial (sliceWholeImage targetImage) canvas startingBlock, None)
 
 let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // quadTree does not support non-blank initial canvas
@@ -74,8 +78,19 @@ let solverMCTS : Solver = fun targetImage canvas ->
     let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
-let solverEagerSwapper : Solver = fun targetImage canvas ->
-    Swapper.eagerSwapper targetImage canvas
+let penalty x =
+    match x with
+    | None -> 0
+    | Some (cost, similarity) -> cost + similarity
+
+let rerunSolver n (solver: Solver) img canvas =
+    let mutable bestSolution, lowestCosts = solver img canvas
+    for _ in 1..n do
+        let solution, costs = solver img canvas
+        if penalty costs < penalty lowestCosts then
+            bestSolution <- solution
+            lowestCosts <- costs
+    bestSolution, lowestCosts
 
 [<EntryPoint>]
 let main args =
@@ -94,25 +109,37 @@ let main args =
         else 
             printfn "Canvas was blank"
             blankCanvas {width = 400; height = 400}
-    let (solver, solverName) = 
-        match results.GetResult (AI) with
-        | None -> ((fun _ _ -> ([],None)), "no AI")
-        | Some (OneLiner) -> (solverOneLiner, "one-line")
-        | Some (QuadTree) ->
+    let rec getSolver = function
+        | OneLiner -> (solverOneLiner, "one-line")
+        | QuadTree ->
             let splitpointSelector =
                 match results.GetResult (SplitPoint) with
                 | None -> AI.midpointCut
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
-        | Some (MCTS) -> (solverMCTS, "MCTS")
-        | Some (Random) -> (solverRandom, "random")
-        | Some EagerSwapper -> (solverEagerSwapper, "eager-swapper")
+        | MCTS -> (solverMCTS, "MCTS")
+        | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
+        | AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
+        | Random -> (rerunSolver 10_000 solverRandom, "random")
+        | MergeMeta ->
+            match results.GetResult (MergeAI) with
+            | None -> failwith "MergeMeta requires a MergeAI argument"
+            | Some MergeMeta -> failwith "Recursive MergeMeta not yet supported"
+            | Some mergeAI ->
+                let innerSolver, innerSolverName = getSolver mergeAI
+                (Merger.mergeMetaSolver innerSolver, $"merge-meta({innerSolverName})")
+    let (solver, solverName) =
+        match results.GetResult (AI) with
+        | None -> ((fun _ _ -> ([],None)), "no AI")
+        | Some ai -> getSolver ai
     printfn "Task %s: Running %s solver" taskPath solverName
     let solution, goodnessOpt = solver targetImage initCanvas
-    let (solutionCanvas, solutionCost) = Instructions.simulate initCanvas solution
+    let (solutionCanvas, solutionCost) = simulate initCanvas solution
     let solutionImage = renderCanvas solutionCanvas
     let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
+    if results.Contains Verbose then
+        printfn "Instructions generated:\n%s" (deparse solution)
     writeSolution taskPath solution (solutionCost + imageSimilarity)
     match goodnessOpt with
     | None -> ()

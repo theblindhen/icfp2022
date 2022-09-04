@@ -2,10 +2,10 @@ module Model
 
 [<Struct>]
 type Color =
-    { r: byte
-      g: byte
-      b: byte
-      a: byte }
+    { r: int
+      g: int
+      b: int
+      a: int }
       member this.toString () =
         sprintf "[%d, %d, %d, %d]" (this.r) (this.g) (this.b) (this.a)
 
@@ -60,7 +60,6 @@ let colorAtPos (img: ImageSlice) (pos: Position) : Color =
     img._img.pixels[(img.offset.y + pos.y) * img._img.size.width + (img.offset.x + pos.x)]
 
 
-
 type Block(id, size, lowerLeft) =
     member val id: string = id with get
     member val size: Size = size with get
@@ -70,13 +69,15 @@ type Block(id, size, lowerLeft) =
 
 type SimpleBlock(id, size, lowerLeft, color) =
     inherit Block(id, size, lowerLeft)
-
     member val color: Color = color with get
 
 type ComplexBlock(id, size, lowerLeft, children) =
     inherit Block(id, size, lowerLeft)
-
     member val children: Block[] = children with get
+
+type ImageBlock(id, size, lowerLeft, image) =
+    inherit Block(id, size, lowerLeft)
+    member val image: ImageSlice = image with get
 
 /// A canvas is made out of blocks
 type Canvas = {
@@ -89,9 +90,17 @@ let blankCanvas size = {
     maxTopId = 0
     size = size
     topBlocks = Map.add "0" (
-            SimpleBlock("0", size, {x = 0; y = 0}, {r = 255uy; g = 255uy; b = 255uy; a = 255uy})
+            SimpleBlock("0", size, {x = 0; y = 0}, {r = 255; g = 255; b = 255; a = 255})
         ) Map.empty
 }
+
+type GridInfo = {
+    /// The size of each cell in the grid
+    cellSize: Size
+    /// The number of horizontal resp vertical cells in the grid
+    dimensions: Size
+}
+
 
 type Direction = H | V
 
@@ -105,6 +114,12 @@ let rec renderBlockInto image offset (block: Block) =
                 image.pixels.[y * image.size.width + x] <- b.color
     | :? ComplexBlock as b ->
         b.children |> Array.iter (renderBlockInto image offset)
+    | :? ImageBlock as b ->
+        for y in 0 .. (b.size.height - 1) do
+            for x in 0 .. (b.size.width - 1) do
+                let ty = y + offset.y + b.lowerLeft.y
+                let tx = x + offset.x + b.lowerLeft.x
+                image.pixels.[ty * image.size.width + tx] <- colorAtPos b.image {x=x; y=y}
     | _ -> failwith "Unknown block type"
 
 let renderBlock (block: Block) =

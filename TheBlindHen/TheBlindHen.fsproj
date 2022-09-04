@@ -12,6 +12,7 @@
     <Compile Include="Loader.fs" />
     <Compile Include="AI.fs" />
     <Compile Include="Swapper.fs" />
+    <Compile Include="Merger.fs" />
     <Compile Include="GUI.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -22,5 +23,6 @@
     <PackageReference Include="JaggerJo.Avalonia.FuncUI.DSL" Version="0.5.3" />
     <PackageReference Include="JaggerJo.Avalonia.FuncUI.Elmish" Version="0.5.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="2.1.3" />
+    <PackageReference Include="Flips" Version="2.4.8" />
   </ItemGroup>
 </Project>
