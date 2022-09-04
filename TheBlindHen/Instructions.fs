@@ -34,6 +34,53 @@ let deparse_instruction (isl: ISL) : string =
     | ISL.MergeBlocks(block1, block2) ->
         sprintf "merge %s %s" (block_to_string block1) (block_to_string block2)
 
+// Parse a single instruction from a string.
+let parse_instruction (str: string) : ISL =
+    let parse_block (str: string) : string =
+        str.Substring(1, str.Length - 2)
+    let parse_color (str: string) : Color =
+        let parts = str.Split(',')
+        { r=int(parts[0]); g=int(parts[1]); b=int(parts[2]); a=int(parts[3]) }
+    let parse_position (str: string) : Position =
+        let parts = str.Split(',')
+        { x=int(parts[0]); y=int(parts[1]) }
+    let parse_direction (str: string) : Direction =
+        match str with
+        | "[X]" -> V
+        | "[Y]" -> H
+        | _ -> failwithf "Invalid direction: %s" str
+    let parse_offset (str: string) : int =
+        int(str.Substring(1, str.Length - 2))
+    let parts = str.Split(' ')
+    match parts.[0] with
+    | "cut" ->
+        let block = parse_block parts.[1]
+        let dir = parse_direction parts.[2]
+        let offset = parse_offset parts.[3]
+        ISL.LineCut(block, dir, offset)
+    | "color" ->
+        let block = parse_block parts.[1]
+        let color = parse_color parts.[2]
+        ISL.ColorBlock(block, color)
+    | "swap" ->
+        let block1 = parse_block parts.[1]
+        let block2 = parse_block parts.[2]
+        ISL.SwapBlocks(block1, block2)
+    | "merge" ->
+        let block1 = parse_block parts.[1]
+        let block2 = parse_block parts.[2]
+        ISL.MergeBlocks(block1, block2)
+    | _ -> failwithf "Invalid instruction: %s" str
+
+let parse_program (str: string) : ISL list =
+    str.Split('\n')
+    |> Array.map parse_instruction
+    |> Array.toList
+
+let parse_file (path: string) : ISL list =
+    System.IO.File.ReadAllText(path)
+    |> parse_program
+
 let deparse (instructions: ISL list) =
     instructions
     |> List.map deparse_instruction
