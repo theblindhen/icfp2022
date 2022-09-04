@@ -67,9 +67,7 @@ let loadBestSolution taskPath =
     | None -> failwith "No solution found"
     | Some(best) ->
         let solutionFile = sprintf "%s%d.isl" solutionDir best
-        failwith "Not implemented: loadBestSolution"
-        // IO.File.ReadAllText(solutionFile)
-        // |> parse
+        parseSolutionFile solutionFile
 
 let solverOneLiner : Solver = fun targetImage canvas ->
     if Map.count canvas.topBlocks > 1 then
@@ -106,12 +104,6 @@ let rerunSolver n (solver: Solver) img canvas =
             bestSolution <- solution
             lowestCosts <- costs
     bestSolution, lowestCosts
-
-let scoreSolution (targetImage: Image) (initCanvas: Canvas) (solution: ISL list) =
-    let (solutionCanvas, solutionCost) = simulate initCanvas solution
-    let solutionImage = renderCanvas solutionCanvas
-    let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
-    (solutionCost, imageSimilarity)
 
 let runAndScoreSolver taskPath (targetImage: Image) (initCanvas: Canvas) (solver: Solver) =
     let solution, solverComputedCostOpt = solver targetImage initCanvas
@@ -184,13 +176,14 @@ let main args =
     // Run the AI to get a solution
     let mutable solution =
         if solverName = "no AI" then
+            printfn "Loading best solution"
             loadBestSolution taskPath
         else
             printfn "Task %s: Running %s solver" taskPath solverName
             runAndScoreSolver taskPath targetImage initCanvas solver
     // Optionally optimize the solution
     if results.Contains OptiTrace then
-        solution <- OptiTrace.optiColorTraceNaive targetImage initCanvas solution
+        solution <- OptiTrace.optimize targetImage initCanvas solution
     // Run the simulator to get the final score
     let (solutionScore, imageSimilarity) = scoreSolution targetImage initCanvas solution
     // Write it to disk if it was better
