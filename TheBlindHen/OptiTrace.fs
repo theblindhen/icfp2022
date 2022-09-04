@@ -134,23 +134,28 @@ let optimizeColors (target: Image) (initCanvas: Canvas) (isl: ISL list) =
         | _ -> ()
     Array.toList isl
 
+let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL list) list) =
+    solutions
+    |> List.map (fun (name, solution) ->
+        let (cost, similarity) = scoreSolution target initCanvas solution
+        (cost, similarity, name, solution))
+    |> List.minBy (fun (cost, similarity, _,  _) -> cost+similarity)
+
 let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
-    let optimized = optimizeColors target initCanvas originalSolution
-    // let optimized = optiColorTraceNaive target initCanvas originalSolution
-    let (optiCost, optiSimilarity) = scoreSolution target initCanvas optimized
-    let optiPenalty = optiCost + optiSimilarity
-    let (originalCost, originalSimilarity) = scoreSolution target initCanvas originalSolution
-    let originalPenalty = originalCost + originalSimilarity
-    let judge = if optiPenalty < originalPenalty then
-                    "IMPROVED"
-                elif optiPenalty = originalPenalty then
-                    "UNCHANGED"
-                else "WORSENED"
-    printfn "optimizer %s cost:\n\tOriginal:  %d\t(ISL=%d\tSim=%d)\n\tOptimized: %d\t(ISL=%d\tSim=%d)"
-        judge
-        originalPenalty originalCost originalSimilarity
-        optiPenalty optiCost optiSimilarity
-    if originalCost < optiCost then
-        originalSolution
+    let optiColors = optimizeColors target initCanvas originalSolution
+    let optiColorTrace = optiColorTraceNaive target initCanvas originalSolution
+    let (optiCost, optiSimilarity, bestOpti, optimized) =
+        [ ("original", originalSolution)
+          ("optiColors", optiColors)
+          ("optiColorTrace", optiColorTrace) ]
+        |> chooseBest target initCanvas
+    if bestOpti = "original" then
+        printfn "Optimizer could not improve"
     else
-        optimized
+        let (originalCost, originalSimilarity) = scoreSolution target initCanvas originalSolution
+        let originalPenalty = originalCost + originalSimilarity
+        printfn "Optimizer IMPROVED, choosing %s" bestOpti
+        printfn "\tOriginal:  %d\t(ISL=%d\tSim=%d)\n\tOptimized: %d\t(ISL=%d\tSim=%d)"
+            originalPenalty originalCost originalSimilarity
+            (optiCost + optiSimilarity) optiCost optiSimilarity
+    optimized

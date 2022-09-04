@@ -41,7 +41,6 @@ let parseInstruction (str: string) : ISL =
     let parse_block (str: string) : string =
         removeBraces str
     let parse_color (str: string) : Color =
-        printfn "Parsing color %s" str
         let parts = (removeBraces str).Split(',')
         { r=int(parts[0]); g=int(parts[1]); b=int(parts[2]); a=int(parts[3]) }
     let parse_position (str: string) : Position =
