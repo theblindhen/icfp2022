@@ -66,7 +66,8 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
 
 let solverMCTS : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
-    AI.mctsSolver (sliceWholeImage targetImage) canvas
+    let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
+    solution, Some(solverCost, solverSimilarity)
 
 let solverEagerSwapper : Solver = fun targetImage canvas ->
     Swapper.eagerSwapper targetImage canvas
