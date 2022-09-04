@@ -50,7 +50,7 @@ type Arguments =
             | TaskPath _ -> "The task png path to use"
             | Verbose _ -> "Print more information"
 
-and AISelector = OneLiner | QuadTree | MCTS | EagerSwapper | AssignSwapper
+and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper
 and SplitPointSelector = Midpoint | HighestDistance
 
 type Solver = Image -> Canvas -> Instructions.ISL list * (int * int) option
@@ -67,6 +67,11 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
     let solution, solverCost, solverSimilarity = AI.quadtreeSolver splitpointSelector (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
+let solverRandom : Solver = fun targetImage canvas ->
+    assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
+    let solution, solverCost, solverSimilarity = AI.fastRandomSolver (sliceWholeImage targetImage) canvas
+    solution, Some(solverCost, solverSimilarity)
+
 let solverMCTS : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
     let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
@@ -76,6 +81,9 @@ let solverMCTS : Solver = fun targetImage canvas ->
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
     let results = parser.Parse args
+    let randomSeed = System.Random().Next()
+    printfn "Random seed: %d" randomSeed
+    Rng.rng <- System.Random(randomSeed) // TODO: add a command-line option for overriding this
     let taskPath = results.GetResult (TaskPath)
     let targetImage = loadPNG taskPath
     let initCanvas =
@@ -89,17 +97,18 @@ let main args =
     let (solver, solverName) = 
         match results.GetResult (AI) with
         | None -> ((fun _ _ -> ([],None)), "no AI")
-        | Some (OneLiner) -> (solverOneLiner, "one-line")
-        | Some (QuadTree) ->
+        | Some OneLiner -> (solverOneLiner, "one-line")
+        | Some QuadTree ->
             let splitpointSelector =
                 match results.GetResult (SplitPoint) with
                 | None -> AI.midpointCut
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
-        | Some (MCTS) -> (solverMCTS, "MCTS")
+        | Some MCTS -> (solverMCTS, "MCTS")
         | Some EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | Some AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
+        | Some Random -> (solverRandom, "random")
     printfn "Task %s: Running %s solver" taskPath solverName
     let solution, goodnessOpt = solver targetImage initCanvas
     let (solutionCanvas, solutionCost) = Instructions.simulate initCanvas solution

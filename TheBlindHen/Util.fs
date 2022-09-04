@@ -134,7 +134,7 @@ let mostFrequentColor (img: ImageSlice) : Color * int =
     max.Key, max.Value
 
 /// If the number of pixels with the most frequent color is above a certain
-/// threshold, return that color.  Otherwise, return the average color.
+/// threshold, return that color.  Otherwise, return the median color.
 let approxMedianColor (img: ImageSlice) : Color =
     let c, n = mostFrequentColor img
     if n > 200 then
@@ -142,7 +142,19 @@ let approxMedianColor (img: ImageSlice) : Color =
     else
         medianColor img
 
+/// If the number of pixels with the most frequent color is above a certain
+/// threshold, return that color.  Otherwise, return the average color.
+let frequentOrAverageColor (img: ImageSlice) : Color =
+    let c, n = mostFrequentColor img
+    if n > 200 then
+        c
+    else
+        averageColor img
+
 let distanceScalingFactor = 0.005
+
+let distanceToSimilarity distance =
+    int (System.Math.Round (distance * distanceScalingFactor))
 
 /// The distance between the target block and a constant color
 /// Returns a dinstance, meaning it's _not_ been scaled by distanceScalingFactor and rounded
@@ -170,4 +182,4 @@ let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
 
 /// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
 let imageSimilarity (proposal: ImageSlice) (target: ImageSlice) : int =
-    int (System.Math.Round (subImageDistance proposal target * distanceScalingFactor))
+    distanceToSimilarity (subImageDistance proposal target)
