@@ -78,6 +78,20 @@ let solverMCTS : Solver = fun targetImage canvas ->
     let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
+let penalty x =
+    match x with
+    | None -> 0
+    | Some (cost, similarity) -> cost + similarity
+
+let rerunSolver n (solver: Solver) img canvas =
+    let mutable bestSolution, lowestCosts = solver img canvas
+    for _ in 1..n do
+        let solution, costs = solver img canvas
+        if penalty costs < penalty lowestCosts then
+            bestSolution <- solution
+            lowestCosts <- costs
+    bestSolution, lowestCosts
+
 [<EntryPoint>]
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
@@ -107,7 +121,7 @@ let main args =
         | MCTS -> (solverMCTS, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
-        | Random -> (solverRandom, "random")
+        | Random -> (rerunSolver 10_000 solverRandom, "random")
         | MergeMeta ->
             match results.GetResult (MergeAI) with
             | None -> failwith "MergeMeta requires a MergeAI argument"

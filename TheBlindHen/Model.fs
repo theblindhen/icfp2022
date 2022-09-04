@@ -2,10 +2,10 @@ module Model
 
 [<Struct>]
 type Color =
-    { r: byte
-      g: byte
-      b: byte
-      a: byte }
+    { r: int
+      g: int
+      b: int
+      a: int }
       member this.toString () =
         sprintf "[%d, %d, %d, %d]" (this.r) (this.g) (this.b) (this.a)
 
@@ -60,7 +60,6 @@ let colorAtPos (img: ImageSlice) (pos: Position) : Color =
     img._img.pixels[(img.offset.y + pos.y) * img._img.size.width + (img.offset.x + pos.x)]
 
 
-
 type Block(id, size, lowerLeft) =
     member val id: string = id with get
     member val size: Size = size with get
@@ -91,7 +90,7 @@ let blankCanvas size = {
     maxTopId = 0
     size = size
     topBlocks = Map.add "0" (
-            SimpleBlock("0", size, {x = 0; y = 0}, {r = 255uy; g = 255uy; b = 255uy; a = 255uy})
+            SimpleBlock("0", size, {x = 0; y = 0}, {r = 255; g = 255; b = 255; a = 255})
         ) Map.empty
 }
 

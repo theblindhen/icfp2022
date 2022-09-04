@@ -140,7 +140,7 @@ let quadtreeSolver (splitpointSelector: SplitPointSelector) (target: ImageSlice)
                     distance3_0 + distance3_1 + distance3_2 + distance3_3
                 )]
         List.minBy (fun (_, cost, distance) -> float cost + distanceScalingFactor * distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
+    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, int (System.Math.Round (distanceScalingFactor * distance)))
 
 let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
@@ -168,7 +168,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 ([], 0, currentDistance)
             ] @ (
                 // Option 2: paint the whole block with the "median" color
-                let medianColor = frequentOrAverageColor targetSlice
+                let medianColor = averageColor targetSlice
                 if medianColor = candidateColor then [] else
                 let medianDistance = singleColorDistance medianColor targetSlice
                 let isl2_color = ISL.ColorBlock(blockId, medianColor)
@@ -180,8 +180,8 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
             // Option 3: split the block into 4 and recurse
             // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
             // TODO: color before splitting in many/all cases.
-            let splitX = randomSemiNormalBetween 1 (targetSlice.size.width - 1)
-            let splitY = randomSemiNormalBetween 1 (targetSlice.size.height - 1)
+            let splitX = randomSemiNormalBetween 1 targetSlice.size.width
+            let splitY = randomSemiNormalBetween 1 targetSlice.size.height
             let cost3_cut = int (System.Math.Round (10.0 * canvasArea / float targetArea))
             let largestSlice =
                 // If we can't color at least the largest slice after splitting,
@@ -206,7 +206,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 distance3_0 + distance3_1 + distance3_2 + distance3_3
             )]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
+    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, distanceToSimilarity distance)
 
 type MCTSState = {
