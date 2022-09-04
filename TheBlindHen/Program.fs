@@ -48,7 +48,7 @@ type Arguments =
             | SplitPoint _ -> "The split point to use"
             | TaskPath _ -> "The task png path to use"
 
-and AISelector = OneLiner | QuadTree | MCTS | EagerSwapper
+and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper
 and SplitPointSelector = Midpoint | HighestDistance
 
 type Solver = Image -> Canvas -> Instructions.ISL list * (int * int) option
@@ -64,6 +64,11 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
     let solution, solverCost, solverSimilarity = AI.quadtreeSolver splitpointSelector (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
+let solverRandom : Solver = fun targetImage canvas ->
+    assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
+    let solution, solverCost, solverSimilarity = AI.fastRandomSolver (sliceWholeImage targetImage) canvas
+    solution, Some(solverCost, solverSimilarity)
+
 let solverMCTS : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
     let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
@@ -76,6 +81,9 @@ let solverEagerSwapper : Solver = fun targetImage canvas ->
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
     let results = parser.Parse args
+    let randomSeed = System.Random().Next()
+    printfn "Random seed: %d" randomSeed
+    Rng.rng <- System.Random(randomSeed) // TODO: add a command-line option for overriding this
     let taskPath = results.GetResult (TaskPath)
     let targetImage = loadPNG taskPath
     let initCanvas =
@@ -98,6 +106,7 @@ let main args =
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
         | Some (MCTS) -> (solverMCTS, "MCTS")
+        | Some (Random) -> (solverRandom, "random")
         | Some EagerSwapper -> (solverEagerSwapper, "eager-swapper")
     printfn "Task %s: Running %s solver" taskPath solverName
     let solution, goodnessOpt = solver targetImage initCanvas

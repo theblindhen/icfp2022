@@ -121,6 +121,72 @@ let quadtreeSolver (splitpointSelector: SplitPointSelector) (target: ImageSlice)
     let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
     (isl, cost, int (System.Math.Round (distanceScalingFactor * distance)))
 
+let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
+    assert (lowerBound <> upperBound)
+    let x1 = Rng.rng.NextDouble()
+    let x2 = Rng.rng.NextDouble()
+    let x3 = Rng.rng.NextDouble()
+    let result = int ((x1 + x2 + x3) / 3.0 * (float (upperBound - lowerBound)) + float lowerBound)
+    if result >= upperBound then upperBound - 1 else result
+
+/// Returns instructions, cost, and similarity (scaled)
+let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
+    let topBlock = canvas.topBlocks |> Map.find "0"
+    let canvasArea = float (topBlock.size.width * topBlock.size.height)
+    /// Returns instructions, cost, and distance (not scaled)
+    /// The candidateColor parameter is the color of the parent block.
+    let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int * float =
+        let targetArea = targetSlice.size.width * targetSlice.size.height
+        let currentDistance = singleColorDistance candidateColor targetSlice
+        if targetArea <= 79 then ([], 0, currentDistance) else // Even in the best case, coloring is too expensive
+        let colorCost = int (System.Math.Round (5.0 * canvasArea / float targetArea))
+        let candidates =
+            [
+                // Option 1: leave color as is (no-op)
+                ([], 0, currentDistance)
+            ] @ (
+                // Option 2: paint the whole block with the "median" color
+                let medianColor = frequentOrAverageColor targetSlice
+                if medianColor = candidateColor then [] else
+                let medianDistance = singleColorDistance medianColor targetSlice
+                let isl2_color = ISL.ColorBlock(blockId, medianColor)
+                [([isl2_color], colorCost, medianDistance)]
+            ) @
+            if targetArea <= breakEvenNumberOfPixels || targetSlice.size.width <= 1 || targetSlice.size.height <= 1 then
+                []
+            else
+            // Option 3: split the block into 4 and recurse
+            // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
+            // TODO: color before splitting in many/all cases.
+            let splitX = randomSemiNormalBetween 1 (targetSlice.size.width - 1)
+            let splitY = randomSemiNormalBetween 1 (targetSlice.size.height - 1)
+            let cost3_cut = int (System.Math.Round (10.0 * canvasArea / float targetArea))
+            let largestSlice =
+                // If we can't color at least the largest slice after splitting,
+                // there's no point in splitting in the first place.
+                let largestWidth = max splitX (targetSlice.size.width - splitX)
+                let largestHeight = max splitY (targetSlice.size.height - splitY)
+                largestWidth * largestHeight
+            let cost3_paintLargest = int (System.Math.Round (5.0 * canvasArea / float largestSlice))
+            if cost3_cut + cost3_paintLargest >= distanceToSimilarity currentDistance then [] else
+            let slice0 = subslice targetSlice { width = splitX; height = splitY } { x = 0; y = 0 }
+            let slice1 = subslice targetSlice { width = targetSlice.size.width - splitX; height = splitY } { x = splitX; y = 0 }
+            let slice2 = subslice targetSlice { width = targetSlice.size.width - splitX; height = targetSlice.size.height - splitY } { x = splitX; y = splitY }
+            let slice3 = subslice targetSlice { width = splitX; height = targetSlice.size.height - splitY } { x = 0; y = splitY }
+            let (isl3_0, cost3_0, distance3_0) = solve $"{blockId}.0" slice0 candidateColor
+            let (isl3_1, cost3_1, distance3_1) = solve $"{blockId}.1" slice1 candidateColor
+            let (isl3_2, cost3_2, distance3_2) = solve $"{blockId}.2" slice2 candidateColor
+            let (isl3_3, cost3_3, distance3_3) = solve $"{blockId}.3" slice3 candidateColor
+            let isl3_cut = ISL.PointCut(blockId, { x = splitX + targetSlice.offset.x; y = splitY + targetSlice.offset.y })
+            [(
+                isl3_cut :: isl3_0 @ isl3_1 @ isl3_2 @ isl3_3,
+                cost3_cut + cost3_0 + cost3_1 + cost3_2 + cost3_3,
+                distance3_0 + distance3_1 + distance3_2 + distance3_3
+            )]
+        List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
+    let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
+    (isl, cost, distanceToSimilarity distance)
+
 type MCTSState = {
     instructionsRev: ISL list
     instructionCost: int
@@ -132,13 +198,11 @@ type MCTSAction =
     | MidpointCut of Block
     | PaintMedian of Block
 
-let rng = new System.Random()
-
 /// Pick n random elements from a sequence
 let pickRandomN (n: int) (seq: seq<'a>) =
     if Seq.length seq <= n then seq else
     seq
-    |> Seq.map (fun x -> (rng.Next(), x))
+    |> Seq.map (fun x -> (Rng.rng.Next(), x))
     |> Seq.sortBy fst
     |> Seq.take n
     |> Seq.map snd
