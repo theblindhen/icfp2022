@@ -11,7 +11,7 @@
             "request": "launch",
             "preLaunchTask": "build_debug",
             "program": "${workspaceFolder}/TheBlindHen/bin/Debug/net6.0/TheBlindHen.dll",
-            "args": ["--ai", "random", "tasks/1.png"],
+            "args": ["--ai", "mcts", "--repetitions", "1000", "--randomseed", "155524518", "tasks/16.png"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
