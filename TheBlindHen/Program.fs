@@ -40,7 +40,7 @@ type Arguments =
     | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
     | SplitPoint of SplitPointSelector option
-    | Repetitions of int option
+    | Repetitions of int
     | MergeAI of AISelector option
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
@@ -125,7 +125,7 @@ let main args =
         | AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
         | Random ->
             let repetitions =
-                match results.GetResult (Repetitions) with
+                match results.TryGetResult (Repetitions) with
                 | None -> 1
                 | Some n -> n
             (rerunSolver repetitions solverRandom, "random")
