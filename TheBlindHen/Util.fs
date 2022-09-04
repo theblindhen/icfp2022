@@ -40,6 +40,21 @@ let averageColor (img: ImageSlice) : Color =
     let (r_f, g_f, b_f, a_f) = averageColorOfImg img
     {r=int(r_f); g=int(g_f); b=int(b_f); a=int(a_f)}
 
+let approxAverageColor (img: ImageSlice) : Color =
+    let area = img.size.height * img.size.width
+    if area <= 100 then averageColor img else
+    let cutoffpoint = if area <= 500 then 50 else 100
+    let mutable r, g, b, a = 0.0, 0.0, 0.0, 0.0
+    for _ in 1 .. cutoffpoint do
+        let x = Rng.rng.Next(img.size.width)
+        let y = Rng.rng.Next(img.size.height)
+        let c = colorAtPos img {x=x; y=y}
+        r <- r + float c.r
+        g <- g + float c.g
+        b <- b + float c.b
+        a <- a + float c.a
+    {r=int(r / float cutoffpoint); g=int(g / float cutoffpoint); b=int(b / float cutoffpoint); a=int(a / float cutoffpoint)}
+
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
 let colorDistance (c1: Color) (c2: Color) : float =
     let r = int c1.r - int c2.r
@@ -181,6 +196,20 @@ let singleColorDistance (proposal: Color) (target: ImageSlice) : float =
             let c2 = colorAtPos target {x=x; y=y}
             score <- score + colorDistance proposal c2
     score
+
+/// The approximate distance between the target block and a constant color
+/// Returns a dinstance, meaning it's _not_ been scaled by distanceScalingFactor and rounded
+let approxSingleColorDistance (proposal: Color) (target: ImageSlice) : float =
+    let area = target.size.height * target.size.width
+    if area <= 100 then singleColorDistance proposal target else
+    let cutoffpoint = if area <= 500 then 50 else 100
+    let mutable score = 0.0
+    for _ in 1 .. cutoffpoint do
+        let x = Rng.rng.Next(target.size.width)
+        let y = Rng.rng.Next(target.size.height)
+        let c = colorAtPos target {x=x; y=y}
+        score <- score + colorDistance proposal c
+    (score / float cutoffpoint) * float area
 
 let singleColorSimilarity (proposal: Color) (target: ImageSlice) : int =
     int (System.Math.Round (singleColorDistance proposal target * distanceScalingFactor))
