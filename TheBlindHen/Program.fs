@@ -39,7 +39,7 @@ type Arguments =
     | AI of AISelector option
     | OptiTrace
     | SplitPoint of SplitPointSelector option
-    | Repetitions of int option
+    | Repetitions of int
     | MergeAI of AISelector option
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
@@ -156,7 +156,7 @@ let main args =
         | AssignSwapper -> (Swapper.assignSwapperSimple, "assign-swapper-simple")
         | Random ->
             let repetitions =
-                match results.GetResult (Repetitions) with
+                match results.TryGetResult (Repetitions) with
                 | None -> 1
                 | Some n -> n
             (rerunSolver repetitions solverRandom, "random")
