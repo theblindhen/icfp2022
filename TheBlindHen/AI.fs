@@ -221,7 +221,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
             // Their benefits should be changed to reflect that the cost of
             // painting the background only has to be paid once. Partition
             // according to whether this new benefit is positive.
-            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), median, sliceMedianDistance, oldBenefit) ->
+            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), _, sliceMedianDistance, oldBenefit) ->
                 // If the old benefit isn't positive, there's no need to waste
                 // time computing a new benefit because it won't be positive
                 // either.  If slice can't benefit from being painted with its
@@ -230,10 +230,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 if sliceId = bestId || oldBenefit <= 0.0 then
                     solution, oldBenefit, sliceMedianDistance
                 else
-                    let newDistance =
-                        if median = bestBackground
-                        then sliceMedianDistance // save a bit of computation cost
-                        else approxSingleColorDistance bestBackground slice
+                    let newDistance = singleColorDistance bestBackground slice
                     // The new benefit for all slices except the best does not
                     // include the cost of painting the background.
                     let newBenefit =
@@ -243,14 +240,13 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                     solution, newBenefit, newDistance
                 )
             let noopSlices, originalSlices = Array.partition (fun (_, benefit, _) -> benefit > 0.0) slices
-            let allSlicesNoop = Array.length originalSlices = 0
             let instructions =
                 (if bestBenefit > 0.0 then [ISL.ColorBlock(blockId, bestBackground)] else [])
-                @ (if allSlicesNoop then [] else [isl3_cut])
+                @ [isl3_cut]
                 @ (originalSlices |> Array.map (fun ((isl, _, _), _, _) -> isl) |> List.ofArray |> List.concat)
             let cost =
                 (if bestBenefit > 0.0 then colorCost else 0)
-                + (if allSlicesNoop then 0 else cost3_cut)
+                + cost3_cut
                 + (originalSlices |> Array.map (fun ((_, cost, _), _, _) -> cost) |> Array.sum)
             let distance =
                 (originalSlices |> Array.map (fun ((_, _, distance), _, _) -> distance) |> Array.sum)
