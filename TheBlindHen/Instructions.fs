@@ -35,14 +35,17 @@ let deparse_instruction (isl: ISL) : string =
         sprintf "merge %s %s" (block_to_string block1) (block_to_string block2)
 
 // Parse a single instruction from a string.
-let parse_instruction (str: string) : ISL =
-    let parse_block (str: string) : string =
+let parseInstruction (str: string) : ISL =
+    let removeBraces (str: string) =
         str.Substring(1, str.Length - 2)
+    let parse_block (str: string) : string =
+        removeBraces str
     let parse_color (str: string) : Color =
-        let parts = str.Split(',')
+        printfn "Parsing color %s" str
+        let parts = (removeBraces str).Split(',')
         { r=int(parts[0]); g=int(parts[1]); b=int(parts[2]); a=int(parts[3]) }
     let parse_position (str: string) : Position =
-        let parts = str.Split(',')
+        let parts = (removeBraces str).Split(',')
         { x=int(parts[0]); y=int(parts[1]) }
     let parse_direction (str: string) : Direction =
         match str with
@@ -50,17 +53,19 @@ let parse_instruction (str: string) : ISL =
         | "[Y]" -> H
         | _ -> failwithf "Invalid direction: %s" str
     let parse_offset (str: string) : int =
-        int(str.Substring(1, str.Length - 2))
+        int(removeBraces str)
     let parts = str.Split(' ')
     match parts.[0] with
     | "cut" ->
-        let block = parse_block parts.[1]
-        let dir = parse_direction parts.[2]
-        let offset = parse_offset parts.[3]
-        ISL.LineCut(block, dir, offset)
+        if parts.Length = 4 then
+            ISL.LineCut(parse_block parts.[1], parse_direction parts.[2], parse_offset parts.[3])
+        elif parts.Length = 3 then
+            ISL.PointCut(parse_block parts.[1], parse_position parts.[2])
+        else
+            failwithf "Invalid cut instruction: %s" str
     | "color" ->
         let block = parse_block parts.[1]
-        let color = parse_color parts.[2]
+        let color = parse_color (parts.[2..] |> String.concat " ") 
         ISL.ColorBlock(block, color)
     | "swap" ->
         let block1 = parse_block parts.[1]
@@ -72,14 +77,17 @@ let parse_instruction (str: string) : ISL =
         ISL.MergeBlocks(block1, block2)
     | _ -> failwithf "Invalid instruction: %s" str
 
-let parse_program (str: string) : ISL list =
+let parseSolutionStr (str: string) : ISL list =
+    if str.TrimStart().Length = 0 then
+        []
+    else
     str.Split('\n')
-    |> Array.map parse_instruction
+    |> Array.map parseInstruction
     |> Array.toList
 
-let parse_file (path: string) : ISL list =
+let parseSolutionFile (path: string) : ISL list =
     System.IO.File.ReadAllText(path)
-    |> parse_program
+    |> parseSolutionStr
 
 let deparse (instructions: ISL list) =
     instructions

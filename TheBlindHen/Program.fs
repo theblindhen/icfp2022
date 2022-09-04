@@ -65,9 +65,7 @@ let loadBestSolution taskPath =
     | None -> failwith "No solution found"
     | Some(best) ->
         let solutionFile = sprintf "%s%d.isl" solutionDir best
-        failwith "Not implemented: loadBestSolution"
-        // IO.File.ReadAllText(solutionFile)
-        // |> parse
+        parseSolutionFile solutionFile
 
 let solverOneLiner : Solver = fun targetImage canvas ->
     if Map.count canvas.topBlocks > 1 then
@@ -168,6 +166,7 @@ let main args =
     // Run the AI to get a solution
     let mutable solution =
         if solverName = "no AI" then
+            printfn "Loading best solution"
             loadBestSolution taskPath
         else
             printfn "Task %s: Running %s solver" taskPath solverName

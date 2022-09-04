@@ -138,11 +138,18 @@ let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
     let optimized = optimizeColors target initCanvas originalSolution
     // let optimized = optiColorTraceNaive target initCanvas originalSolution
     let (optiCost, optiSimilarity) = scoreSolution target initCanvas optimized
+    let optiPenalty = optiCost + optiSimilarity
     let (originalCost, originalSimilarity) = scoreSolution target initCanvas originalSolution
+    let originalPenalty = originalCost + originalSimilarity
+    let judge = if optiPenalty < originalPenalty then
+                    "IMPROVED"
+                elif optiPenalty = originalPenalty then
+                    "UNCHANGED"
+                else "WORSENED"
     printfn "optimizer %s cost:\n\tOriginal:  %d\t(ISL=%d\tSim=%d)\n\tOptimized: %d\t(ISL=%d\tSim=%d)"
-        (if optiCost + optiSimilarity < originalCost + originalSimilarity then "IMPROVED" else "WORSENED")
-        (originalCost + originalSimilarity) originalCost originalSimilarity
-        (optiCost + optiSimilarity) optiCost optiSimilarity
+        judge
+        originalPenalty originalCost originalSimilarity
+        optiPenalty optiCost optiSimilarity
     if originalCost < optiCost then
         originalSolution
     else
