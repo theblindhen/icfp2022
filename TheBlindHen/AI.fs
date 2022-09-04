@@ -218,7 +218,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
             // Their benefits should be changed to reflect that the cost of
             // painting the background only has to be paid once. Partition
             // according to whether this new benefit is positive.
-            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), median, sliceMedianDistance, oldBenefit) ->
+            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), _, sliceMedianDistance, oldBenefit) ->
                 // If the old benefit isn't positive, there's no need to waste
                 // time computing a new benefit because it won't be positive
                 // either.  If slice can't benefit from being painted with its
@@ -227,10 +227,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 if sliceId = bestId || oldBenefit <= 0.0 then
                     solution, oldBenefit, sliceMedianDistance
                 else
-                    let newDistance =
-                        if median = bestBackground
-                        then sliceMedianDistance // save a bit of computation cost
-                        else approxSingleColorDistance bestBackground slice
+                    let newDistance = singleColorDistance bestBackground slice
                     // The new benefit for all slices except the best does not
                     // include the cost of painting the background.
                     let newBenefit =
