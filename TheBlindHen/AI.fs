@@ -207,7 +207,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                     // Calculate the median for each slice.
                     // TODO: perf: pass that into the recursion so it's not
                     // recomputed there.
-                    let sliceMedian = frequentOrAverageColor slice
+                    let sliceMedian = averageColor slice
                     let sliceMedianDistance = singleColorDistance sliceMedian slice
                     let benefitFromInheritingColor =
                         float cost
