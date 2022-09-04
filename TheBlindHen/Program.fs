@@ -36,6 +36,7 @@ let writeSolution taskPath islSolution score =
 
 type Arguments =
     | GUI
+    | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
     | SplitPoint of SplitPointSelector option
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
@@ -47,17 +48,19 @@ type Arguments =
             | AI _ -> "The AI to use"
             | SplitPoint _ -> "The split point to use"
             | TaskPath _ -> "The task png path to use"
+            | Verbose _ -> "Print more information"
 
-and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper
+and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper
 and SplitPointSelector = Midpoint | HighestDistance
 
 type Solver = Image -> Canvas -> Instructions.ISL list * (int * int) option
 
-// TODO: These should take a task, not just a taskImage
 let solverOneLiner : Solver = fun targetImage canvas ->
-    assert (Map.count canvas.topBlocks = 1) // oneLiner does not support non-blank initial canvas
-    let startingBlock = canvas.topBlocks |> Map.find "0"
-    ([ AI.colorBlockMedian (sliceWholeImage targetImage) startingBlock ], None)
+    if Map.count canvas.topBlocks > 1 then
+        ([], None) // oneLiner does not support non-blank initial canvas
+    else
+    let startingBlock = canvas.topBlocks |> Map.find "0" :?> SimpleBlock
+    (AI.colorBlockMedianIfBeneficial (sliceWholeImage targetImage) canvas startingBlock, None)
 
 let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // quadTree does not support non-blank initial canvas
@@ -73,9 +76,6 @@ let solverMCTS : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
     let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
-
-let solverEagerSwapper : Solver = fun targetImage canvas ->
-    Swapper.eagerSwapper targetImage canvas
 
 let penalty x =
     match x with
@@ -111,22 +111,25 @@ let main args =
     let (solver, solverName) = 
         match results.GetResult (AI) with
         | None -> ((fun _ _ -> ([],None)), "no AI")
-        | Some (OneLiner) -> (solverOneLiner, "one-line")
-        | Some (QuadTree) ->
+        | Some OneLiner -> (solverOneLiner, "one-line")
+        | Some QuadTree ->
             let splitpointSelector =
                 match results.GetResult (SplitPoint) with
                 | None -> AI.midpointCut
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
-        | Some (MCTS) -> (solverMCTS, "MCTS")
-        | Some (Random) -> (rerunSolver 1_000 solverRandom, "random")
-        | Some EagerSwapper -> (solverEagerSwapper, "eager-swapper")
+        | Some MCTS -> (solverMCTS, "MCTS")
+        | Some EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
+        | Some AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
+        | Some Random -> (rerunSolver 1_000 solverRandom, "random")
     printfn "Task %s: Running %s solver" taskPath solverName
     let solution, goodnessOpt = solver targetImage initCanvas
     let (solutionCanvas, solutionCost) = Instructions.simulate initCanvas solution
     let solutionImage = renderCanvas solutionCanvas
     let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
+    if results.Contains Verbose then
+        printfn "Instructions generated:\n%s" (Instructions.deparse solution)
     writeSolution taskPath solution (solutionCost + imageSimilarity)
     match goodnessOpt with
     | None -> ()

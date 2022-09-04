@@ -14,6 +14,28 @@ let colorBlockMedian (target: ImageSlice) (block: Block) : ISL =
     let color = medianColor target
     ISL.ColorBlock(block.id, color)
 
+/// Determine whether our score may be improved by coloring the input simpleblock
+/// according to the median color of the target. If so, return that instruction.
+/// Otherwise return the empty instruction list
+let colorBlockMedianIfBeneficial (target: ImageSlice) (canvas: Canvas) (block: SimpleBlock) : ISL list =
+    let currentSimilarity = singleColorSimilarity block.color target
+    let median = medianColor target
+    let medianSimilarity = singleColorSimilarity median target
+    let colorCost = islCost canvas ISLOps.ColorBlock block.size
+    if currentSimilarity > medianSimilarity + colorCost then
+        [ ISL.ColorBlock(block.id, median) ]
+    else
+        []
+
+/// Go through each block in the canvas and decide whether it should be colored
+/// according to the median color of the target image.
+let colorCanvasMedianWhereBeneficial (target: Image) (canvas: Canvas) =
+    [ for block in canvas.topBlocks.Values do
+        if block :? SimpleBlock then
+            let block = block :?> SimpleBlock
+            let targetSlice = sliceImage target block.size block.lowerLeft
+            yield! colorBlockMedianIfBeneficial targetSlice canvas block ]
+
 let highestDistanceVerticalCut (target: ImageSlice) : int option =
     let minWidth = 1
     let candidate =
