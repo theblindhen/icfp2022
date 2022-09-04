@@ -1,26 +1,8 @@
 module Swapper
 
 open Model
+open Util
 open Instructions
-
-let assertAllBlockSameSize canvas =
-    let b0 = canvas.topBlocks["0"]
-    for b in Map.values canvas.topBlocks do
-        assert (b.size = b0.size)
-
-/// Create a permanent numbering of each location of a block in the canvas.
-/// This is because the blockId's will be moved around when swapping
-let positionMap (canvas: Canvas) =
-    let (_, blockMap, positions) =
-        Map.values canvas.topBlocks
-        |> List.ofSeq
-        |> List.sortBy (fun b -> b.lowerLeft.y * canvas.size.width + b.lowerLeft.x)
-        |> Seq.fold (fun (n, blockMap, positionMap) block ->
-                (n+1,
-                Map.add n (block :?> SimpleBlock) blockMap,
-                Map.add n (block.lowerLeft, block.size) positionMap)
-            ) (0, Map.empty, Map.empty)
-    (blockMap, positions)
 
 let swapBlocks (blockMap: Map<int, SimpleBlock>) pos1 pos2 =
     let b1, b2 = blockMap[pos1], blockMap[pos2]
@@ -31,7 +13,7 @@ let swapBlocks (blockMap: Map<int, SimpleBlock>) pos1 pos2 =
     (blockMap, ISL.SwapBlocks(b1.id, b2.id))
 
 let eagerSwapper (targetImage: Image) (canvas: Canvas) =
-    assertAllBlockSameSize canvas
+    assert (canvasGridInfo canvas <> None)
     let blockMap,_ = positionMap canvas
     let chooseGreedySwap (blockMap: Map<int, SimpleBlock>) posId =
         let curBlock = blockMap[posId]
@@ -156,7 +138,7 @@ let swapsFromAssignment (blockMap: Map<int, SimpleBlock>) (assignment: Map<int, 
     |> List.rev
 
 let assignSwapper (targetImage: Image) (canvas: Canvas) =
-    assertAllBlockSameSize canvas
+    assert (canvasGridInfo canvas <> None)
     let blockMap, positions = positionMap canvas
     let colorToBlockIds =
         Map.values canvas.topBlocks
