@@ -201,8 +201,8 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 |> Array.map (fun (slice, sliceId) ->
                     // Calculate the median for each slice.
                     // Pass that into the recursion so it's not recomputed.
-                    let sliceMedian = averageColor slice
-                    let sliceMedianDistance = singleColorDistance sliceMedian slice
+                    let sliceMedian = approxAverageColor slice
+                    let sliceMedianDistance = approxSingleColorDistance sliceMedian slice
                     let (isl, cost, distance) = solve sliceId slice sliceMedian sliceMedianDistance candidateColor
                     let benefitFromInheritingColor =
                         float cost
@@ -230,7 +230,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                     let newDistance =
                         if median = bestBackground
                         then sliceMedianDistance // save a bit of computation cost
-                        else singleColorDistance bestBackground slice
+                        else approxSingleColorDistance bestBackground slice
                     // The new benefit for all slices except the best does not
                     // include the cost of painting the background.
                     let newBenefit =
@@ -254,8 +254,8 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 + (noopSlices |> Array.map (fun (_, _, distance) -> distance) |> Array.sum)
             [(instructions, cost, distance)]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let targetMedian = averageColor target
-    let targetMedianDistance = singleColorDistance targetMedian target
+    let targetMedian = approxAverageColor target
+    let targetMedianDistance = approxSingleColorDistance targetMedian target
     let isl, cost, distance = solve "0" target targetMedian targetMedianDistance {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, distanceToSimilarity distance)
 
