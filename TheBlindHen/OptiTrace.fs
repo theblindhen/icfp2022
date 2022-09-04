@@ -4,13 +4,18 @@ open Model
 open Util
 open Instructions
 
+/// Return all blocks that are inside the given block id
+/// In the absence of swap and merge, this is equivalent to having an id that
+/// starts with the given id.
+let blocksInside (simpleBlocks: Map<string, 'a :> Block>) (id: string) : 'a list =
+    Map.values simpleBlocks
+    |> Seq.filter (fun (b: 'a) -> b.id.StartsWith id)
+    |> List.ofSeq
+
 /// For each color of a block appearing inside the given id, sum up the coloring
 /// cost of those blocks
 let colorCostsInside canvas (simpleBlocks: Map<string, SimpleBlock>) (id: string) : Map<Color, int> =
-    simpleBlocks
-    |> Map.filter (fun subId _ -> subId.StartsWith id)
-    |> Map.values
-    |> List.ofSeq
+    blocksInside simpleBlocks id
     |> List.groupBy (fun block -> block.color)
     |> List.map (fun (color, blocks) ->
         let cost =
@@ -65,6 +70,9 @@ let optiColorTraceNaive (target: Image) (initCanvas: Canvas) (isl: ISL list) =
             |> Seq.choose id
             |> List.ofSeq
         firstPass @ afterColors
+    // Check that we didn't do anything wrong:
+    // All blocks should end up with the same colors (and ids and sizes) that
+    // they had originally
     let optiFinalCanvas, optiCost = simulate initCanvas optimized
     assert (Set(Map.keys simpleBlocks) = Set(Map.keys optiFinalCanvas.topBlocks))
     for id, block in Map.toSeq optiFinalCanvas.topBlocks do
@@ -73,11 +81,69 @@ let optiColorTraceNaive (target: Image) (initCanvas: Canvas) (isl: ISL list) =
         assert(origBlock.color = block.color)
         assert(origBlock.size = block.size)
         assert(origBlock.lowerLeft = block.lowerLeft)
-    printfn "optimizer %s cost: original cost: %d, optimized cost: %d"
-        (if originalCost > optiCost then "IMPROVED" else "WORSENED")
-        originalCost
-        optiCost
+    optimized
+
+/// Go through all Color instructions. For each, enumerate the final
+/// simpleBlocks that are colored by this instruction. Replace the Color by the
+/// median color appearing in all those blocks.
+let optimizeColors (target: Image) (initCanvas: Canvas) (isl: ISL list) =
+    let finalCanvas, originalCost = simulate initCanvas isl
+    let simpleBlocks = Map.map (fun _ (b: Block) -> b :?> SimpleBlock) finalCanvas.topBlocks 
+    let isl = Array.ofList isl
+    for i = 0 to isl.Length - 1 do
+        match isl.[i] with
+        | ISL.ColorBlock (blockId, oldColor) ->
+            // Go through the remaining instructions to determine which final
+            // sub-blocks are colored by this instruction.
+            let recoloredSubs: string list =
+                isl.[i+1..]
+                |> Seq.ofArray
+                |> Seq.map (fun instruction ->
+                    match instruction with
+                    | ISL.ColorBlock (subId, _) ->
+                        if subId.StartsWith blockId then Some subId
+                        else None
+                    | _ -> None)
+                |> Seq.choose id
+                |> List.ofSeq
+            let untouchedSubs =
+                recoloredSubs
+                :: (recoloredSubs |> List.map (fun subId ->
+                                        blocksInside simpleBlocks subId
+                                        |> List.map (fun b -> b.id)))
+                |> List.concat
+                |> Set.ofList
+            let touchedSubs =
+                Set.difference
+                    (blocksInside simpleBlocks blockId
+                      |> List.map (fun b -> b.id)
+                      |> Set.ofList)
+                    untouchedSubs
+            let medianColor =
+                touchedSubs
+                |> Set.toSeq
+                |> Seq.map (fun subId ->
+                    let sub = simpleBlocks[subId]
+                    sliceImage target sub.size sub.lowerLeft
+                    |> imageSlicePixels)
+                |> Seq.concat
+                |> medianColorSeq
+            if medianColor <> oldColor then
+                printfn "Color %s changed from %s to %s" blockId (oldColor.toString()) (medianColor.toString())
+                isl.[i] <- ISL.ColorBlock (blockId, medianColor)
+        | _ -> ()
+    Array.toList isl
+
+let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
+    let optimized = optimizeColors target initCanvas originalSolution
+    // let optimized = optiColorTraceNaive target initCanvas originalSolution
+    let (optiCost, optiSimilarity) = scoreSolution target initCanvas optimized
+    let (originalCost, originalSimilarity) = scoreSolution target initCanvas originalSolution
+    printfn "optimizer %s cost:\n\tOriginal:  %d\t(ISL=%d\tSim=%d)\n\tOptimized: %d\t(ISL=%d\tSim=%d)"
+        (if optiCost + optiSimilarity < originalCost + originalSimilarity then "IMPROVED" else "WORSENED")
+        (originalCost + originalSimilarity) originalCost originalSimilarity
+        (optiCost + optiSimilarity) optiCost optiSimilarity
     if originalCost < optiCost then
-        isl
+        originalSolution
     else
         optimized

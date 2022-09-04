@@ -187,3 +187,9 @@ let simulate (canvas: Canvas) (instructions: ISL list) : Canvas * int =
         let (canvas, islCost) = simulate_step canvas isl
         (canvas, cost + islCost)
     ) (canvas, 0)
+
+let scoreSolution (targetImage: Image) (initCanvas: Canvas) (solution: ISL list) =
+    let (solutionCanvas, solutionCost) = simulate initCanvas solution
+    let solutionImage = renderCanvas solutionCanvas
+    let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
+    (solutionCost, imageSimilarity)

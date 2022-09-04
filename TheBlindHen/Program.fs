@@ -105,12 +105,6 @@ let rerunSolver n (solver: Solver) img canvas =
             lowestCosts <- costs
     bestSolution, lowestCosts
 
-let scoreSolution (targetImage: Image) (initCanvas: Canvas) (solution: ISL list) =
-    let (solutionCanvas, solutionCost) = simulate initCanvas solution
-    let solutionImage = renderCanvas solutionCanvas
-    let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
-    (solutionCost, imageSimilarity)
-
 let runAndScoreSolver taskPath (targetImage: Image) (initCanvas: Canvas) (solver: Solver) =
     let solution, solverComputedCostOpt = solver targetImage initCanvas
     let solutionCost, imageSimilarity = scoreSolution targetImage initCanvas solution
@@ -180,7 +174,7 @@ let main args =
             runAndScoreSolver taskPath targetImage initCanvas solver
     // Optionally optimize the solution
     if results.Contains OptiTrace then
-        solution <- OptiTrace.optiColorTraceNaive targetImage initCanvas solution
+        solution <- OptiTrace.optimize targetImage initCanvas solution
     // Run the simulator to get the final score
     let (solutionScore, imageSimilarity) = scoreSolution targetImage initCanvas solution
     // Write it to disk if it was better
