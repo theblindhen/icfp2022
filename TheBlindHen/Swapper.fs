@@ -187,7 +187,7 @@ let assignSwapper (targetImage: Image) (canvas: Canvas) =
     // TODO: Our estimate of swapping cost may be improved by factoring in
     // the number of positions of the current and the target color
     let posColorCosts =
-        let swapCostMultiplier = 1.0 - 1.0/float(List.length colors)
+        let swapCostMultiplier = 0.6 //1.0 - 1.0/float(List.length colors)
         blockMap
         |> Map.map (fun posId block ->
             let target = sliceImage targetImage block.size block.lowerLeft
