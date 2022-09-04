@@ -157,7 +157,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
     let canvasArea = float (topBlock.size.width * topBlock.size.height)
     /// Returns instructions, cost, and distance (not scaled)
     /// The candidateColor parameter is the color of the parent block.
-    let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int * float =
+    let rec solve (blockId: string) (targetSlice: ImageSlice) medianColor medianDistance (candidateColor: Color) : ISL list * int * float =
         let targetArea = targetSlice.size.width * targetSlice.size.height
         let currentDistance = approxSingleColorDistance candidateColor targetSlice
         if targetArea <= 79 then ([], 0, currentDistance) else // Even in the best case, coloring is too expensive
@@ -168,9 +168,6 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 ([], 0, currentDistance)
             ] @ (
                 // Option 2: paint the whole block with the "median" color
-                let medianColor = approxAverageColor targetSlice
-                if medianColor = candidateColor then [] else
-                let medianDistance = approxSingleColorDistance medianColor targetSlice
                 let isl2_color = ISL.ColorBlock(blockId, medianColor)
                 [([isl2_color], colorCost, medianDistance)]
             ) @
@@ -179,7 +176,6 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
             else
             // Option 3: split the block into 4 and recurse
             // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
-            // TODO: color before splitting in many/all cases.
             let splitX = randomSemiNormalBetween 1 targetSlice.size.width
             let splitY = randomSemiNormalBetween 1 targetSlice.size.height
             let cost3_cut = int (System.Math.Round (10.0 * canvasArea / float targetArea))
@@ -203,12 +199,11 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
             let slices =
                 [|slice0, $"{blockId}.0"; slice1, $"{blockId}.1"; slice2, $"{blockId}.2"; slice3, $"{blockId}.3" |]
                 |> Array.map (fun (slice, sliceId) ->
-                    let (isl, cost, distance) = solve sliceId slice candidateColor
                     // Calculate the median for each slice.
-                    // TODO: perf: pass that into the recursion so it's not
-                    // recomputed there.
+                    // Pass that into the recursion so it's not recomputed.
                     let sliceMedian = averageColor slice
                     let sliceMedianDistance = singleColorDistance sliceMedian slice
+                    let (isl, cost, distance) = solve sliceId slice sliceMedian sliceMedianDistance candidateColor
                     let benefitFromInheritingColor =
                         float cost
                         + distanceScalingFactor * distance
@@ -259,7 +254,9 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 + (noopSlices |> Array.map (fun (_, _, distance) -> distance) |> Array.sum)
             [(instructions, cost, distance)]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
+    let targetMedian = averageColor target
+    let targetMedianDistance = singleColorDistance targetMedian target
+    let isl, cost, distance = solve "0" target targetMedian targetMedianDistance {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, distanceToSimilarity distance)
 
 type MCTSState = {
