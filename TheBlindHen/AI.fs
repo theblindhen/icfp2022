@@ -237,14 +237,13 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                     solution, newBenefit, newDistance
                 )
             let noopSlices, originalSlices = Array.partition (fun (_, benefit, _) -> benefit > 0.0) slices
-            let allSlicesNoop = Array.length originalSlices = 0
             let instructions =
                 (if bestBenefit > 0.0 then [ISL.ColorBlock(blockId, bestBackground)] else [])
-                @ (if allSlicesNoop then [] else [isl3_cut])
+                @ [isl3_cut]
                 @ (originalSlices |> Array.map (fun ((isl, _, _), _, _) -> isl) |> List.ofArray |> List.concat)
             let cost =
                 (if bestBenefit > 0.0 then colorCost else 0)
-                + (if allSlicesNoop then 0 else cost3_cut)
+                + cost3_cut
                 + (originalSlices |> Array.map (fun ((_, cost, _), _, _) -> cost) |> Array.sum)
             let distance =
                 (originalSlices |> Array.map (fun ((_, _, distance), _, _) -> distance) |> Array.sum)
