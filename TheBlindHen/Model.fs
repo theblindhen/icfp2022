@@ -70,13 +70,15 @@ type Block(id, size, lowerLeft) =
 
 type SimpleBlock(id, size, lowerLeft, color) =
     inherit Block(id, size, lowerLeft)
-
     member val color: Color = color with get
 
 type ComplexBlock(id, size, lowerLeft, children) =
     inherit Block(id, size, lowerLeft)
-
     member val children: Block[] = children with get
+
+type ImageBlock(id, size, lowerLeft, image) =
+    inherit Block(id, size, lowerLeft)
+    member val image: ImageSlice = image with get
 
 /// A canvas is made out of blocks
 type Canvas = {
@@ -93,6 +95,14 @@ let blankCanvas size = {
         ) Map.empty
 }
 
+type GridInfo = {
+    /// The size of each cell in the grid
+    cellSize: Size
+    /// The number of horizontal resp vertical cells in the grid
+    dimensions: Size
+}
+
+
 type Direction = H | V
 
 let rec renderBlockInto image offset (block: Block) =
@@ -105,6 +115,12 @@ let rec renderBlockInto image offset (block: Block) =
                 image.pixels.[y * image.size.width + x] <- b.color
     | :? ComplexBlock as b ->
         b.children |> Array.iter (renderBlockInto image offset)
+    | :? ImageBlock as b ->
+        for y in 0 .. (b.size.height - 1) do
+            for x in 0 .. (b.size.width - 1) do
+                let ty = y + offset.y + b.lowerLeft.y
+                let tx = x + offset.x + b.lowerLeft.x
+                image.pixels.[ty * image.size.width + tx] <- colorAtPos b.image {x=x; y=y}
     | _ -> failwith "Unknown block type"
 
 let renderBlock (block: Block) =

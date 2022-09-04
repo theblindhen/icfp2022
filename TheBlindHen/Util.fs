@@ -183,3 +183,29 @@ let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
 /// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
 let imageSimilarity (proposal: ImageSlice) (target: ImageSlice) : int =
     distanceToSimilarity (subImageDistance proposal target)
+
+/// If the canvas is sub-divided as a grid, return the size of the grid
+/// elements, and the number of horizontal and vertical grid elements
+let canvasGridInfo canvas : GridInfo option =
+    let b0 = canvas.topBlocks["0"]
+    match Map.values canvas.topBlocks |> Seq.tryFind (fun b -> b.size <> b0.size) with
+    | Some _ -> None
+    | None ->
+        Some ({
+            cellSize = b0.size;
+            dimensions = { width = canvas.size.width / b0.size.width;
+                           height = canvas.size.height / b0.size.height } })
+
+/// Create a permanent numbering of each location of a block in the canvas.
+/// This is mainly used for initialized grid-like canvases
+let positionMap (canvas: Canvas) =
+    let (_, blockMap, positions) =
+        Map.values canvas.topBlocks
+        |> List.ofSeq
+        |> List.sortBy (fun b -> b.lowerLeft.y * canvas.size.width + b.lowerLeft.x)
+        |> Seq.fold (fun (n, blockMap, positionMap) block ->
+                (n+1,
+                Map.add n (block :?> SimpleBlock) blockMap,
+                Map.add n (block.lowerLeft, block.size) positionMap)
+            ) (0, Map.empty, Map.empty)
+    (blockMap, positions)

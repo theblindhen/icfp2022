@@ -39,6 +39,8 @@ let deparse (instructions: ISL list) =
     |> List.map deparse_instruction
     |> String.concat "\n"
 
+type Solver = Image -> Canvas -> ISL list * (int * int) option
+
 [<RequireQualifiedAccess>]
 type ISLOps =
     | LineCut
@@ -134,15 +136,52 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
         let block1 = Map.find blockId1 canvas.topBlocks
         let block2 = Map.find blockId2 canvas.topBlocks
         assert (block1.size = block2.size)
-        if not (block1 :? SimpleBlock && block2 :? SimpleBlock) then failwith "Simulator: swapping non-simple blocks is unimplemented"
         let cost = islCost canvas ISLOps.SwapBlocks block1.size
+        let blockWithLowerLeft (block: Block) lowerLeft : Block =
+            match block with
+            | :? SimpleBlock as block -> SimpleBlock(block.id, block.size, lowerLeft, block.color)
+            | :? ComplexBlock as block -> ComplexBlock(block.id, block.size, lowerLeft, block.children)
+            | :? ImageBlock as block -> ImageBlock(block.id, block.size, lowerLeft, block.image)
+            | _ -> failwith "Unknown type of block"
         { canvas with
             topBlocks = canvas.topBlocks
             |> Map.remove blockId1
             |> Map.remove blockId2
-            |> Map.add blockId1 (SimpleBlock(blockId1, block1.size, block2.lowerLeft, (block1 :?> SimpleBlock).color))
-            |> Map.add blockId2 (SimpleBlock(blockId2, block2.size, block1.lowerLeft, (block2 :?> SimpleBlock).color)) }, cost
-    | _ -> failwith "Instruction not implemented"
+            |> Map.add blockId1 (blockWithLowerLeft block2 block1.lowerLeft)
+            |> Map.add blockId2 (blockWithLowerLeft block1 block2.lowerLeft) }, cost
+    | ISL.MergeBlocks (blockId1, blockId2) ->
+        let maxTopId = canvas.maxTopId
+        let block1 = Map.find blockId1 canvas.topBlocks
+        let block2 = Map.find blockId2 canvas.topBlocks
+        // Assert that block1 and block2 are adjacent
+        let lowerLeft, size =
+            if block1.lowerLeft.x = block2.lowerLeft.x then
+                // Blocks are on the same vertical line
+                assert (block1.lowerLeft.y = block2.lowerLeft.y + block2.size.height || block2.lowerLeft.y = block1.lowerLeft.y + block1.size.height)
+                assert (block1.size.width = block2.size.width)
+                ({ x = block1.lowerLeft.x;
+                   y = System.Math.Min(block1.lowerLeft.y, block2.lowerLeft.y) },
+                 { width = block1.size.width;
+                   height = block1.size.height + block2.size.height })
+            elif block1.lowerLeft.y = block2.lowerLeft.y then
+                // Blocks are on the same horizontal line
+                assert (block1.lowerLeft.x = block2.lowerLeft.x + block2.size.width || block2.lowerLeft.x = block1.lowerLeft.x + block1.size.width)
+                assert (block1.size.height = block2.size.height)
+                ({ x = System.Math.Min(block1.lowerLeft.x, block2.lowerLeft.x);
+                   y = block1.lowerLeft.y },
+                 { width = block1.size.width + block2.size.width;
+                   height = block1.size.height })
+            else failwith "Simulator: merging non-adjacent blocks"
+        // Create a complex block for the purpose of rendering it
+        let complexBlock = ComplexBlock("temp", size, lowerLeft, [|block1; block2|])
+        let imageBlock = ImageBlock(string (maxTopId + 1), size, lowerLeft, sliceWholeImage(renderBlock complexBlock))
+        let cost = islCost canvas ISLOps.MergeBlocks size
+        { canvas with
+            maxTopId = maxTopId + 1;
+            topBlocks = canvas.topBlocks
+            |> Map.remove blockId1
+            |> Map.remove blockId2
+            |> Map.add imageBlock.id imageBlock }, cost
 
 /// Returns the resulting canvas and the cost of the program
 let simulate (canvas: Canvas) (instructions: ISL list) : Canvas * int =
