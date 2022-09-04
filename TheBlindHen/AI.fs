@@ -267,8 +267,10 @@ type MCTSState = {
     stopped: bool
 }
 
+type Cut = Left | Mid | Right | Top | Bottom
+
 type MCTSAction = 
-    | MidpointCut of Block
+    | PointCut of Block * Cut
     | PaintMedian of Block
     | Stop
 
@@ -289,12 +291,21 @@ let actions state =
         block.size.width > 1 &&
         block.size.height > 1 &&
         block.size.width * block.size.height > breakEvenNumberOfPixels)
-    |> pickRandomN 10
+    |> pickRandomN 5
     |> Seq.map (fun block -> 
-        MidpointCut block :: (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
+        PointCut(block, Top)::PointCut(block, Mid)::PointCut(block, Bottom)::PointCut(block, Left)::PointCut(block, Right)::
+        (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
     |> Seq.concat
     |> Seq.append (Seq.singleton Stop)
     |> Array.ofSeq
+
+let cutpoint cut (block: Block) = 
+    match cut with 
+    | Left -> { x = block.lowerLeft.x + block.size.width / 3; y = block.lowerLeft.y + block.size.height / 2 }
+    | Mid -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 }
+    | Right -> { x = block.lowerLeft.x + block.size.width * 2 / 3; y = block.lowerLeft.y + block.size.height / 2 }
+    | Top -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 3 }
+    | Bottom -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height * 2 / 3 }
 
 let step targetImage state action =
     match action with
@@ -311,8 +322,8 @@ let step targetImage state action =
             blocksPainted = state.blocksPainted.Add(block.id)
             stopped = false
         }
-    | MidpointCut block ->
-        let isl = ISL.PointCut(block.id, { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 })
+    | PointCut (block, cut) ->
+        let isl = ISL.PointCut(block.id, cutpoint cut block)
         let canvas, cost = simulate_step state.canvas isl
         {
             instructionsRev = isl :: state.instructionsRev
@@ -370,7 +381,12 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
             let distance = subImageDistance (sliceWholeImage renderedBlock) targetSlice
             ([], 0, distance)
         | Some (action, state) ->
-            printfn "Took action: %A" action
+            let description =
+                match action with
+                | Stop -> "Stopping"
+                | PaintMedian block -> sprintf "Painting median of %s" block.id
+                | PointCut (block, cut) -> sprintf "Point cutting %s at %A" block.id cut
+            printfn "%s" description
             if state.stopped then 
                 let block = Map.find blockId canvas.topBlocks 
                 let targetSlice = subslice target block.size block.lowerLeft
