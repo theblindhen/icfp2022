@@ -152,14 +152,14 @@ let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
     if result >= upperBound then upperBound - 1 else result
 
 /// Returns instructions, cost, and similarity (scaled)
-let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
-    let topBlock = canvas.topBlocks |> Map.find "0"
+let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
+    let topBlock = canvas.topBlocks |> Map.find blockId
     let canvasArea = float (topBlock.size.width * topBlock.size.height)
     /// Returns instructions, cost, and distance (not scaled)
     /// The candidateColor parameter is the color of the parent block.
-    let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int * float =
+    let rec solve (blockId: string) (targetSlice: ImageSlice) medianColor medianDistance (candidateColor: Color) : ISL list * int * float =
         let targetArea = targetSlice.size.width * targetSlice.size.height
-        let currentDistance = singleColorDistance candidateColor targetSlice
+        let currentDistance = approxSingleColorDistance candidateColor targetSlice
         if targetArea <= 79 then ([], 0, currentDistance) else // Even in the best case, coloring is too expensive
         let colorCost = int (System.Math.Round (5.0 * canvasArea / float targetArea))
         let candidates =
@@ -168,9 +168,6 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 ([], 0, currentDistance)
             ] @ (
                 // Option 2: paint the whole block with the "median" color
-                let medianColor = averageColor targetSlice
-                if medianColor = candidateColor then [] else
-                let medianDistance = singleColorDistance medianColor targetSlice
                 let isl2_color = ISL.ColorBlock(blockId, medianColor)
                 [([isl2_color], colorCost, medianDistance)]
             ) @
@@ -179,7 +176,6 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
             else
             // Option 3: split the block into 4 and recurse
             // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
-            // TODO: color before splitting in many/all cases.
             let splitX = randomSemiNormalBetween 1 targetSlice.size.width
             let splitY = randomSemiNormalBetween 1 targetSlice.size.height
             let cost3_cut = int (System.Math.Round (10.0 * canvasArea / float targetArea))
@@ -195,18 +191,72 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
             let slice1 = subslice targetSlice { width = targetSlice.size.width - splitX; height = splitY } { x = splitX; y = 0 }
             let slice2 = subslice targetSlice { width = targetSlice.size.width - splitX; height = targetSlice.size.height - splitY } { x = splitX; y = splitY }
             let slice3 = subslice targetSlice { width = splitX; height = targetSlice.size.height - splitY } { x = 0; y = splitY }
-            let (isl3_0, cost3_0, distance3_0) = solve $"{blockId}.0" slice0 candidateColor
-            let (isl3_1, cost3_1, distance3_1) = solve $"{blockId}.1" slice1 candidateColor
-            let (isl3_2, cost3_2, distance3_2) = solve $"{blockId}.2" slice2 candidateColor
-            let (isl3_3, cost3_3, distance3_3) = solve $"{blockId}.3" slice3 candidateColor
             let isl3_cut = ISL.PointCut(blockId, { x = splitX + targetSlice.offset.x; y = splitY + targetSlice.offset.y })
-            [(
-                isl3_cut :: isl3_0 @ isl3_1 @ isl3_2 @ isl3_3,
-                cost3_cut + cost3_0 + cost3_1 + cost3_2 + cost3_3,
-                distance3_0 + distance3_1 + distance3_2 + distance3_3
-            )]
+            // Pick the sub-slice that would benefit most from being
+            // replaced with a single color, then paint the current block in
+            // that color before splitting. Then discarded the program of any
+            // sub-slice that would benefit from being replaced by that color.
+            let slices =
+                [|slice0, $"{blockId}.0"; slice1, $"{blockId}.1"; slice2, $"{blockId}.2"; slice3, $"{blockId}.3" |]
+                |> Array.map (fun (slice, sliceId) ->
+                    // Calculate the median for each slice.
+                    // Pass that into the recursion so it's not recomputed.
+                    let sliceMedian = approxAverageColor slice
+                    let sliceMedianDistance = approxSingleColorDistance sliceMedian slice
+                    let (isl, cost, distance) = solve sliceId slice sliceMedian sliceMedianDistance candidateColor
+                    let benefitFromInheritingColor =
+                        float cost
+                        + distanceScalingFactor * distance
+                        - distanceScalingFactor * sliceMedianDistance
+                        - float colorCost
+                    slice, sliceId, (isl, cost, distance), sliceMedian, sliceMedianDistance, benefitFromInheritingColor
+                )
+            // Find the highest benefit, which maybe negative if it's not beneficial
+            let _, bestId, _, bestBackground, _, bestBenefit = slices |> Array.maxBy (fun (_, _, _, _, _, benefit) -> benefit)
+            // Now map the slices so their distance-to-background is replaced by
+            // a new computation if their ideal background color was different.
+            // Their benefits should be changed to reflect that the cost of
+            // painting the background only has to be paid once. Partition
+            // according to whether this new benefit is positive.
+            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), median, sliceMedianDistance, oldBenefit) ->
+                // If the old benefit isn't positive, there's no need to waste
+                // time computing a new benefit because it won't be positive
+                // either.  If slice can't benefit from being painted with its
+                // own optimal color, it won't benefit from being painted with a
+                // sibling's optimal color either.
+                if sliceId = bestId || oldBenefit <= 0.0 then
+                    solution, oldBenefit, sliceMedianDistance
+                else
+                    let newDistance =
+                        if median = bestBackground
+                        then sliceMedianDistance // save a bit of computation cost
+                        else approxSingleColorDistance bestBackground slice
+                    // The new benefit for all slices except the best does not
+                    // include the cost of painting the background.
+                    let newBenefit =
+                        float cost
+                        + distanceScalingFactor * distance
+                        - distanceScalingFactor * newDistance
+                    solution, newBenefit, newDistance
+                )
+            let noopSlices, originalSlices = Array.partition (fun (_, benefit, _) -> benefit > 0.0) slices
+            let allSlicesNoop = Array.length originalSlices = 0
+            let instructions =
+                (if bestBenefit > 0.0 then [ISL.ColorBlock(blockId, bestBackground)] else [])
+                @ (if allSlicesNoop then [] else [isl3_cut])
+                @ (originalSlices |> Array.map (fun ((isl, _, _), _, _) -> isl) |> List.ofArray |> List.concat)
+            let cost =
+                (if bestBenefit > 0.0 then colorCost else 0)
+                + (if allSlicesNoop then 0 else cost3_cut)
+                + (originalSlices |> Array.map (fun ((_, cost, _), _, _) -> cost) |> Array.sum)
+            let distance =
+                (originalSlices |> Array.map (fun ((_, _, distance), _, _) -> distance) |> Array.sum)
+                + (noopSlices |> Array.map (fun (_, _, distance) -> distance) |> Array.sum)
+            [(instructions, cost, distance)]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
+    let targetMedian = approxAverageColor target
+    let targetMedianDistance = approxSingleColorDistance targetMedian target
+    let isl, cost, distance = solve blockId target targetMedian targetMedianDistance currColor
     (isl, cost, distanceToSimilarity distance)
 
 type MCTSState = {
@@ -266,7 +316,6 @@ let step targetImage state action =
 
 // Take random actions until we reach a state from which no actions are available
 let simulate targetImage state =
-    printfn "Simulating %d blocks" state.blocksControlled.Count
     let mutable i = 0
     let rec loop state =
         let actions = actions state
@@ -276,7 +325,6 @@ let simulate targetImage state =
         i <- i + 1
         loop state
     let endState = loop state
-    printfn "Took %d iterations. Calculating distance" i
     let distance =
         Seq.sumBy (fun blockId ->
             let block = Map.find blockId endState.canvas.topBlocks
@@ -285,7 +333,6 @@ let simulate targetImage state =
             subImageDistance (sliceWholeImage renderedBlock) targetSlice
         ) endState.blocksControlled
     let similarity = int (System.Math.Round (distance * distanceScalingFactor))
-    printfn "Done"
     similarity + endState.instructionCost
 
 /// Returns instructions, cost, and similarity (scaled)

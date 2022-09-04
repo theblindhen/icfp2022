@@ -15,14 +15,14 @@ type UtilTests () =
             // These operations may overflow, but it shouldn't matter: we're
             // testing whether we've found the minimum by trying neighbours, so
             // no harm in trying a few other colors as well on overflow.
-            [ { est with r=byte(est.r-1uy) }
-              { est with r=byte(est.r+1uy) }
-              { est with g=byte(est.g-1uy) }
-              { est with g=byte(est.g+1uy) }
-              { est with b=byte(est.b-1uy) }
-              { est with b=byte(est.b+1uy) }
-              { est with a=byte(est.a-1uy) }
-              { est with a=byte(est.a+1uy) } ]
+            [ { est with r=est.r-1 }
+              { est with r=est.r+1 }
+              { est with g=est.g-1 }
+              { est with g=est.g+1 }
+              { est with b=est.b-1 }
+              { est with b=est.b+1 }
+              { est with a=est.a-1 }
+              { est with a=est.a+1 } ]
             |> List.map (fun n -> 
                 let dist = colorDistanceSeq cols n
                 printfn "Neighbour %s distance: %f" (n.toString ()) dist
@@ -33,42 +33,42 @@ type UtilTests () =
 
     [<TestMethod>]
     member this.medianColorLst1() =
-        let cols = [ { r=1uy; g=2uy; b=3uy; a=4uy } ]
+        let cols = [ { r=1; g=2; b=3; a=4 } ]
         let median = medianColorSeq cols
         Assert.AreEqual(cols[0], median)
 
     [<TestMethod>]
     member this.medianColorLst2() =
-        let cols = [ { r=1uy; g=1uy; b=1uy; a=1uy }
-                     { r=3uy; g=3uy; b=3uy; a=3uy } ]
+        let cols = [ { r=1; g=1; b=1; a=1 }
+                     { r=3; g=3; b=3; a=3 } ]
         let median = medianColorSeq cols
-        Assert.AreEqual({ r=2uy; g=2uy; b=2uy; a=2uy }, median)
+        Assert.AreEqual({ r=2; g=2; b=2; a=2 }, median)
 
     [<TestMethod>]
     member this.medianColorLst3() =
-        let cols = [ { r=0uy; g=0uy; b=0uy; a=0uy }
-                     { r=0uy; g=0uy; b=0uy; a=0uy }
-                     { r=0uy; g=0uy; b=0uy; a=0uy }
-                     { r=0uy; g=0uy; b=0uy; a=12uy } ]
+        let cols = [ { r=0; g=0; b=0; a=0 }
+                     { r=0; g=0; b=0; a=0 }
+                     { r=0; g=0; b=0; a=0 }
+                     { r=0; g=0; b=0; a=12 } ]
         let median = medianColorSeq cols
-        Assert.AreEqual( { r=0uy; g=0uy; b=0uy; a=0uy }, median)
+        Assert.AreEqual( { r=0; g=0; b=0; a=0 }, median)
         testEstNeighbors cols median
 
     [<TestMethod>]
     member this.medianColorLst4() =
-        let cols = [ { r=0uy; g=1uy; b=2uy; a=3uy }
-                     { r=8uy; g=9uy; b=10uy; a=11uy }
-                     { r=16uy; g=17uy; b=18uy; a=19uy }
-                     { r=24uy; g=25uy; b=26uy; a=27uy }
-                     { r=32uy; g=33uy; b=34uy; a=35uy } ]
+        let cols = [ { r=0; g=1; b=2; a=3 }
+                     { r=8; g=9; b=10; a=11 }
+                     { r=16; g=17; b=18; a=19 }
+                     { r=24; g=25; b=26; a=27 }
+                     { r=32; g=33; b=34; a=35 } ]
         let median = medianColorSeq cols
         testEstNeighbors cols median
 
     [<TestMethod>]
     member this.medianColorLstEquals() =
-        let cols = Array.init (400*400) (fun _ -> { r=255uy; g=255uy; b=255uy; a=255uy })
+        let cols = Array.init (400*400) (fun _ -> { r=255; g=255; b=255; a=255 })
         let median = medianColorSeq cols
-        Assert.AreEqual( { r=255uy; g=255uy; b=255uy; a=255uy }, median)
+        Assert.AreEqual( { r=255; g=255; b=255; a=255 }, median)
         testEstNeighbors cols median
 
     [<TestMethod>]
@@ -107,7 +107,7 @@ type UtilTests () =
             (158.0, 158.0, 158.0, 255.0); (0.0, 0.0, 0.0, 255.0); (2.0, 2.0, 2.0, 255.0);
             (0.0, 0.0, 0.0, 255.0)]
         let cols =
-            fcols |> List.map (fun (r, g, b, a) -> { r=byte r; g=byte g; b=byte b; a=byte a })
+            fcols |> List.map (fun (r, g, b, a) -> { r=int r; g=int g; b=int b; a=int a })
         let median = medianColorSeq cols
         testEstNeighbors cols median
 

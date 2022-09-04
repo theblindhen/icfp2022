@@ -40,6 +40,7 @@ type Arguments =
     | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
     | SplitPoint of SplitPointSelector option
+    | Repetitions of int option
     | MergeAI of AISelector option
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
@@ -49,6 +50,7 @@ type Arguments =
             | GUI -> "Show the GUI"
             | AI _ -> "The AI to use"
             | SplitPoint _ -> "The split point to use"
+            | Repetitions _ -> "The number of repetitions"
             | TaskPath _ -> "The task png path to use"
             | Verbose _ -> "Print more information"
             | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
@@ -70,7 +72,7 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
 
 let solverRandom : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
-    let solution, solverCost, solverSimilarity = AI.fastRandomSolver (sliceWholeImage targetImage) canvas
+    let solution, solverCost, solverSimilarity = AI.fastRandomSolver "0" {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
 let solverMCTS : Solver = fun targetImage canvas ->
@@ -121,7 +123,12 @@ let main args =
         | MCTS -> (solverMCTS, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | AssignSwapper -> (Swapper.assignSwapperSimple, "assign-swapper-simple")
-        | Random -> (rerunSolver 10_000 solverRandom, "random")
+        | Random ->
+            let repetitions =
+                match results.GetResult (Repetitions) with
+                | None -> 1
+                | Some n -> n
+            (rerunSolver repetitions solverRandom, "random")
         | MergeMeta ->
             match results.GetResult (MergeAI) with
             | None -> failwith "MergeMeta requires a MergeAI argument"
