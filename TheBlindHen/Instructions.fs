@@ -91,6 +91,18 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
                 |> Map.add slice_left.id slice_left
                 |> Map.add slice_right.id slice_right }, int cost
         | _ -> failwith "Simulator: cutting a non-simple block is unimplemented"
+    | ISL.SwapBlocks (blockId1, blockId2) ->
+        let block1 = Map.find blockId1 canvas.topBlocks
+        let block2 = Map.find blockId2 canvas.topBlocks
+        assert (block1.size = block2.size)
+        if not (block1 :? SimpleBlock && block2 :? SimpleBlock) then failwith "Simulator: swapping non-simple blocks is unimplemented"
+        let cost = System.Math.Round (5.0 * canvasArea / float (block1.size.width * block1.size.height))
+        { canvas with
+            topBlocks = canvas.topBlocks
+            |> Map.remove blockId1
+            |> Map.remove blockId2
+            |> Map.add blockId1 (SimpleBlock(blockId1, block1.size, block2.lowerLeft, (block1 :?> SimpleBlock).color))
+            |> Map.add blockId2 (SimpleBlock(blockId2, block2.size, block1.lowerLeft, (block2 :?> SimpleBlock).color)) }, int cost
     | _ -> failwith "Instruction not implemented"
 /// Returns the resulting canvas and the cost of the program
 let simulate (canvas: Canvas) (instructions: ISL list) : Canvas * int =
