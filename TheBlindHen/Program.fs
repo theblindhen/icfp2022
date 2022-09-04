@@ -122,7 +122,7 @@ let main args =
         | Some MCTS -> (solverMCTS, "MCTS")
         | Some EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | Some AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
-        | Some Random -> (rerunSolver 1_000 solverRandom, "random")
+        | Some Random -> (rerunSolver 10_000 solverRandom, "random")
     printfn "Task %s: Running %s solver" taskPath solverName
     let solution, goodnessOpt = solver targetImage initCanvas
     let (solutionCanvas, solutionCost) = Instructions.simulate initCanvas solution

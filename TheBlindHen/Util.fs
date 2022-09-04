@@ -38,7 +38,7 @@ let averageColorOfImg (img: ImageSlice) : (float*float*float*float) =
 
 let averageColor (img: ImageSlice) : Color =
     let (r_f, g_f, b_f, a_f) = averageColorOfImg img
-    {r=byte(r_f); g=byte(g_f); b=byte(b_f); a=byte(a_f)}
+    {r=int(r_f); g=int(g_f); b=int(b_f); a=int(a_f)}
 
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
 let colorDistance (c1: Color) (c2: Color) : float =
@@ -59,7 +59,7 @@ let medianColorSeq (cols: Color seq) : Color =
                 |> List.map (fun c -> (float c.r, float c.g, float c.b, float c.a))
     if fcols.Length = 0 then
         printfn "WARNING: medianColorSeq called with empty list"
-        {r=0uy; g=0uy; b=0uy; a=0uy}
+        {r=0; g=0; b=0; a=0}
     elif fcols.Length = 1 then
         cols |> Seq.head
     else
@@ -105,24 +105,24 @@ let medianColorSeq (cols: Color seq) : Color =
        fmid2 < -0.1 || fmid2 > 255.1 || 
        fmid3 < -0.1 || fmid3 > 255.1 then
         printfn "WARNING: median_color computed an invalid color: (%f, %f, %f, %f)" fmid0 fmid1 fmid2 fmid3
-    let est = {r=byte(System.Math.Round(fmid0));
-               g=byte(System.Math.Round(fmid1));
-               b=byte(System.Math.Round(fmid2));
-               a=byte(System.Math.Round(fmid3))}
+    let est = {r=int(System.Math.Round(fmid0));
+               g=int(System.Math.Round(fmid1));
+               b=int(System.Math.Round(fmid2));
+               a=int(System.Math.Round(fmid3))}
     let estDist = colorDistanceSeq cols est
     // Try taking a single neighbouring step in each direction
     let (bestNeigh, bestNeighDist) = 
         // These operations may overflow, but it shouldn't matter: we're
         // testing whether we've found the minimum by trying neighbours, so
         // no harm in trying a few other colors as well on overflow.
-        [ { est with r=byte(est.r-1uy) }
-          { est with r=byte(est.r+1uy) }
-          { est with g=byte(est.g-1uy) }
-          { est with g=byte(est.g+1uy) }
-          { est with b=byte(est.b-1uy) }
-          { est with b=byte(est.b+1uy) }
-          { est with a=byte(est.a-1uy) }
-          { est with a=byte(est.a+1uy) } ]
+        [ { est with r=int(est.r-1) }
+          { est with r=int(est.r+1) }
+          { est with g=int(est.g-1) }
+          { est with g=int(est.g+1) }
+          { est with b=int(est.b-1) }
+          { est with b=int(est.b+1) }
+          { est with a=int(est.a-1) }
+          { est with a=int(est.a+1) } ]
         |> List.map (fun n -> 
             let dist = colorDistanceSeq cols n
             (n, dist))

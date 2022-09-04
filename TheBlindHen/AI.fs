@@ -140,7 +140,7 @@ let quadtreeSolver (splitpointSelector: SplitPointSelector) (target: ImageSlice)
                     distance3_0 + distance3_1 + distance3_2 + distance3_3
                 )]
         List.minBy (fun (_, cost, distance) -> float cost + distanceScalingFactor * distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
+    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, int (System.Math.Round (distanceScalingFactor * distance)))
 
 let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
@@ -206,7 +206,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 distance3_0 + distance3_1 + distance3_2 + distance3_3
             )]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
+    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, distanceToSimilarity distance)
 
 type MCTSState = {

@@ -19,10 +19,10 @@ let loadPNG (imgFilePath: string) : Model.Image =
         for x in 0 .. img.Width - 1 do
             let pixel = pixelArray.[(img.Height - y - 1) * img.Width + x]
             pixels.[y * img.Width + x] <- {
-                r = pixel.R
-                g = pixel.G
-                b = pixel.B
-                a = pixel.A
+                r = int pixel.R
+                g = int pixel.G
+                b = int pixel.B
+                a = int pixel.A
             }
     {
         size = {width = img.Width; height = img.Height}
@@ -34,7 +34,7 @@ let toImageSharp (img : Model.Image) : Image<Rgba32> =
     for y in 0 .. img.size.height - 1 do
         for x in 0 .. img.size.width - 1 do
             let pixel = img.pixels.[(img.size.height - y - 1) * img.size.width + x]
-            pixelArray.[y * img.size.width + x] <- Rgba32(pixel.r, pixel.g, pixel.b, pixel.a)
+            pixelArray.[y * img.size.width + x] <- Rgba32(byte pixel.r, byte pixel.g, byte pixel.b, byte pixel.a)
     Image.LoadPixelData(pixelArray, img.size.width, img.size.height)
 
 let resize (size: Model.Size) (img: Image<Rgba32>) =
@@ -72,10 +72,10 @@ let loadSimpleCanvasJson (jsonFilePath: string) =
               height = b.topRight.[1] - b.bottomLeft.[1] },
             { x = b.bottomLeft.[0]
               y = b.bottomLeft.[1] },
-            { r = byte b.color.[0]
-              g = byte b.color.[1]
-              b = byte b.color.[2]
-              a = byte b.color.[3] })
+            { r = b.color.[0]
+              g = b.color.[1]
+              b = b.color.[2]
+              a = b.color.[3] })
         )
     { maxTopId = blocks.Length
       size = { width = jsonCanvas.width
