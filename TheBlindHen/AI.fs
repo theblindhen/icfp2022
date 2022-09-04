@@ -159,7 +159,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
     /// The candidateColor parameter is the color of the parent block.
     let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int * float =
         let targetArea = targetSlice.size.width * targetSlice.size.height
-        let currentDistance = singleColorDistance candidateColor targetSlice
+        let currentDistance = approxSingleColorDistance candidateColor targetSlice
         if targetArea <= 79 then ([], 0, currentDistance) else // Even in the best case, coloring is too expensive
         let colorCost = int (System.Math.Round (5.0 * canvasArea / float targetArea))
         let candidates =
@@ -168,9 +168,9 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
                 ([], 0, currentDistance)
             ] @ (
                 // Option 2: paint the whole block with the "median" color
-                let medianColor = averageColor targetSlice
+                let medianColor = approxAverageColor targetSlice
                 if medianColor = candidateColor then [] else
-                let medianDistance = singleColorDistance medianColor targetSlice
+                let medianDistance = approxSingleColorDistance medianColor targetSlice
                 let isl2_color = ISL.ColorBlock(blockId, medianColor)
                 [([isl2_color], colorCost, medianDistance)]
             ) @
@@ -266,7 +266,6 @@ let step targetImage state action =
 
 // Take random actions until we reach a state from which no actions are available
 let simulate targetImage state =
-    printfn "Simulating %d blocks" state.blocksControlled.Count
     let mutable i = 0
     let rec loop state =
         let actions = actions state
@@ -276,7 +275,6 @@ let simulate targetImage state =
         i <- i + 1
         loop state
     let endState = loop state
-    printfn "Took %d iterations. Calculating distance" i
     let distance =
         Seq.sumBy (fun blockId ->
             let block = Map.find blockId endState.canvas.topBlocks
@@ -285,7 +283,6 @@ let simulate targetImage state =
             subImageDistance (sliceWholeImage renderedBlock) targetSlice
         ) endState.blocksControlled
     let similarity = int (System.Math.Round (distance * distanceScalingFactor))
-    printfn "Done"
     similarity + endState.instructionCost
 
 /// Returns instructions, cost, and similarity (scaled)
