@@ -153,11 +153,12 @@ let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
 
 /// Returns instructions, cost, and similarity (scaled)
 let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
-    let topBlock = canvas.topBlocks |> Map.find blockId
-    let canvasArea = float (topBlock.size.width * topBlock.size.height)
+    let canvasArea = float (canvas.size.width * canvas.size.height)
     /// Returns instructions, cost, and distance (not scaled)
     /// The candidateColor parameter is the color of the parent block.
     let rec solve (blockId: string) (targetSlice: ImageSlice) medianColor medianDistance (candidateColor: Color) : ISL list * int * float =
+        assert(targetSlice.size.width >= 0)
+        assert(targetSlice.size.height >= 0)
         let targetArea = targetSlice.size.width * targetSlice.size.height
         let currentDistance = approxSingleColorDistance candidateColor targetSlice
         if targetArea <= 79 then ([], 0, currentDistance) else // Even in the best case, coloring is too expensive
@@ -178,6 +179,8 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
             // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
             let splitX = randomSemiNormalBetween 1 targetSlice.size.width
             let splitY = randomSemiNormalBetween 1 targetSlice.size.height
+            assert(splitX >= 1 && splitX < targetSlice.size.width)
+            assert(splitY >= 1 && splitY < targetSlice.size.height)
             let cost3_cut = int (System.Math.Round (10.0 * canvasArea / float targetArea))
             let largestSlice =
                 // If we can't color at least the largest slice after splitting,
@@ -218,7 +221,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
             // Their benefits should be changed to reflect that the cost of
             // painting the background only has to be paid once. Partition
             // according to whether this new benefit is positive.
-            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), median, sliceMedianDistance, oldBenefit) ->
+            let slices = slices |> Array.map (fun (slice, sliceId, ((_, cost, distance) as solution), _, sliceMedianDistance, oldBenefit) ->
                 // If the old benefit isn't positive, there's no need to waste
                 // time computing a new benefit because it won't be positive
                 // either.  If slice can't benefit from being painted with its
@@ -227,10 +230,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 if sliceId = bestId || oldBenefit <= 0.0 then
                     solution, oldBenefit, sliceMedianDistance
                 else
-                    let newDistance =
-                        if median = bestBackground
-                        then sliceMedianDistance // save a bit of computation cost
-                        else approxSingleColorDistance bestBackground slice
+                    let newDistance = singleColorDistance bestBackground slice
                     // The new benefit for all slices except the best does not
                     // include the cost of painting the background.
                     let newBenefit =
@@ -240,14 +240,13 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                     solution, newBenefit, newDistance
                 )
             let noopSlices, originalSlices = Array.partition (fun (_, benefit, _) -> benefit > 0.0) slices
-            let allSlicesNoop = Array.length originalSlices = 0
             let instructions =
                 (if bestBenefit > 0.0 then [ISL.ColorBlock(blockId, bestBackground)] else [])
-                @ (if allSlicesNoop then [] else [isl3_cut])
+                @ [isl3_cut]
                 @ (originalSlices |> Array.map (fun ((isl, _, _), _, _) -> isl) |> List.ofArray |> List.concat)
             let cost =
                 (if bestBenefit > 0.0 then colorCost else 0)
-                + (if allSlicesNoop then 0 else cost3_cut)
+                + cost3_cut
                 + (originalSlices |> Array.map (fun ((_, cost, _), _, _) -> cost) |> Array.sum)
             let distance =
                 (originalSlices |> Array.map (fun ((_, _, distance), _, _) -> distance) |> Array.sum)
@@ -264,11 +263,14 @@ type MCTSState = {
     instructionCost: int
     canvas: Canvas
     blocksControlled: Set<string>
+    blocksPainted: Set<string>
+    stopped: bool
 }
 
 type MCTSAction = 
     | MidpointCut of Block
     | PaintMedian of Block
+    | Stop
 
 /// Pick n random elements from a sequence
 let pickRandomN (n: int) (seq: seq<'a>) =
@@ -280,6 +282,7 @@ let pickRandomN (n: int) (seq: seq<'a>) =
     |> Seq.map snd
 
 let actions state =
+    if state.stopped then [||] else
     state.blocksControlled
     |> Seq.map (fun blockId -> Map.find blockId state.canvas.topBlocks)
     |> Seq.filter (fun block ->
@@ -287,8 +290,10 @@ let actions state =
         block.size.height > 1 &&
         block.size.width * block.size.height > breakEvenNumberOfPixels)
     |> pickRandomN 10
-    |> Seq.map (fun block -> [MidpointCut block; PaintMedian block])
+    |> Seq.map (fun block -> 
+        MidpointCut block :: (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
     |> Seq.concat
+    |> Seq.append (Seq.singleton Stop)
     |> Array.ofSeq
 
 let step targetImage state action =
@@ -303,6 +308,8 @@ let step targetImage state action =
             instructionCost = cost + state.instructionCost
             canvas = canvas
             blocksControlled = state.blocksControlled
+            blocksPainted = state.blocksPainted.Add(block.id)
+            stopped = false
         }
     | MidpointCut block ->
         let isl = ISL.PointCut(block.id, { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 })
@@ -312,31 +319,39 @@ let step targetImage state action =
             instructionCost = cost + state.instructionCost
             canvas = canvas
             blocksControlled = state.blocksControlled.Remove(block.id).Add($"{block.id}.0").Add($"{block.id}.1").Add($"{block.id}.2").Add($"{block.id}.3")
+            blocksPainted = state.blocksPainted.Remove(block.id)
+            stopped = false
         }
+    | Stop ->
+        { state with stopped = true }
+         
+let mutable i = 0
 
 // Take random actions until we reach a state from which no actions are available
 let simulate targetImage state =
-    let mutable i = 0
-    let rec loop state =
-        let actions = actions state
-        if actions.Length = 0 then state else
-        let action = actions.[0] // Actions are already randomized
-        let state = step targetImage state action
-        i <- i + 1
-        loop state
-    let endState = loop state
-    let distance =
-        Seq.sumBy (fun blockId ->
-            let block = Map.find blockId endState.canvas.topBlocks
-            let targetSlice = subslice targetImage block.size block.lowerLeft
-            let renderedBlock = renderBlock block
-            subImageDistance (sliceWholeImage renderedBlock) targetSlice
-        ) endState.blocksControlled
-    let similarity = int (System.Math.Round (distance * distanceScalingFactor))
-    similarity + endState.instructionCost
+    if i % 100 = 0 then 
+        printfn "Simulation %d" i
+        printfn "%s" (Instructions.deparse (List.rev state.instructionsRev))
+    i <- i + 1
+    let nextInstructions =
+        if state.stopped then [] else
+        state.blocksControlled
+        |> Seq.map (fun blockId ->
+            match Map.find blockId state.canvas.topBlocks with
+            | :? SimpleBlock as block->
+                let targetSlice = subslice targetImage block.size block.lowerLeft 
+                let instructions, _, _ = fastRandomSolver blockId block.color targetSlice state.canvas
+                instructions
+            | _ -> failwith "no support for complex blocks")
+        |> Seq.concat
+        |> List.ofSeq
+    let terminalCanvas, nextInstructionsCost = Instructions.simulate state.canvas nextInstructions
+    let terminalImg = renderCanvas terminalCanvas
+    let similarity = imageSimilarity (sliceWholeImage terminalImg) targetImage
+    similarity + nextInstructionsCost + state.instructionCost
 
 /// Returns instructions, cost, and similarity (scaled)
-let mctsSolver (target: ImageSlice) (originalCanvas: Canvas) =
+let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) =
     /// Returns reversed(!) instructions, cost, and distance (unscaled!)
     let rec solveBlock canvas blockId =
         let state = {
@@ -344,15 +359,25 @@ let mctsSolver (target: ImageSlice) (originalCanvas: Canvas) =
             instructionCost = 0
             canvas = canvas
             blocksControlled = Set.singleton blockId
+            blocksPainted = Set.empty
+            stopped = false
         }
-        match MCTS.mctsFindBestMove (actions) (step target) (simulate target) (sqrt 2.0) (1_000) state with
+        match MCTS.mctsFindBestMove (actions) (step target) (simulate target) (sqrt 2.0) repetitions state with
         | None ->
             let block = Map.find blockId canvas.topBlocks
             let targetSlice = subslice target block.size block.lowerLeft
             let renderedBlock = renderBlock block
             let distance = subImageDistance (sliceWholeImage renderedBlock) targetSlice
             ([], 0, distance)
-        | Some (_, state) ->
+        | Some (action, state) ->
+            printfn "Took action: %A" action
+            if state.stopped then 
+                let block = Map.find blockId canvas.topBlocks 
+                let targetSlice = subslice target block.size block.lowerLeft
+                let renderedBlock = renderBlock block
+                let distance = subImageDistance (sliceWholeImage renderedBlock) targetSlice 
+                (state.instructionsRev, state.instructionCost, distance) 
+            else
             printfn "Recursing into %d blocks" state.blocksControlled.Count
             // Recurse into the controlled blocks of the new state
             Seq.fold (fun (instructionsRev, cost, distance) blockId ->

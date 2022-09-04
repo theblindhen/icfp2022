@@ -41,6 +41,7 @@ type Arguments =
     | SplitPoint of SplitPointSelector option
     | Repetitions of int
     | MergeAI of AISelector option
+    | RandomSeed of int
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
     interface IArgParserTemplate with
@@ -54,6 +55,7 @@ type Arguments =
             | TaskPath _ -> "The task png path to use"
             | Verbose _ -> "Print more information"
             | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
+            | RandomSeed _ -> "The random seed to use"
 
 and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeMeta
 and SplitPointSelector = Midpoint | HighestDistance
@@ -84,9 +86,9 @@ let solverRandom : Solver = fun targetImage canvas ->
     let solution, solverCost, solverSimilarity = AI.fastRandomSolver "0" {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
-let solverMCTS : Solver = fun targetImage canvas ->
+let solverMCTS repetitions : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
-    let solution, solverCost, solverSimilarity = AI.mctsSolver (sliceWholeImage targetImage) canvas
+    let solution, solverCost, solverSimilarity = AI.mctsSolver repetitions (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
 let penalty x =
@@ -121,7 +123,10 @@ let runAndScoreSolver taskPath (targetImage: Image) (initCanvas: Canvas) (solver
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
     let results = parser.Parse args
-    let randomSeed = System.Random().Next()
+    let randomSeed = 
+        match results.TryGetResult RandomSeed with
+        | Some s -> s
+        | None -> System.Random().Next()
     printfn "Random seed: %d" randomSeed
     Rng.rng <- System.Random(randomSeed) // TODO: add a command-line option for overriding this
     let taskPath = results.GetResult (TaskPath)
@@ -143,7 +148,12 @@ let main args =
                 | Some (Midpoint) -> AI.midpointCut
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
-        | MCTS -> (solverMCTS, "MCTS")
+        | MCTS -> 
+            let repetitions = 
+                match results.TryGetResult (Repetitions) with
+                | None -> 1
+                | Some n -> n
+            (solverMCTS repetitions, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
         | AssignSwapper -> (Swapper.assignSwapperSimple, "assign-swapper-simple")
         | Random ->
