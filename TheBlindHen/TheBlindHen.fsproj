@@ -4,6 +4,7 @@
     <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="MCTS.fs" />
     <Compile Include="Model.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="Instructions.fs" />

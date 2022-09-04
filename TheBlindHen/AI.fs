@@ -118,3 +118,111 @@ let quadtreeSolver (splitpointSelector: ImageSlice -> int option * int option) (
         List.minBy (fun (_, cost, distance) -> float cost + distanceScalingFactor * distance) candidates
     let isl, cost, distance = solve "0" target {r = 255uy; g = 255uy; b = 255uy; a = 255uy}
     (isl, cost, int (System.Math.Round (distanceScalingFactor * distance)))
+
+type MCTSState = {
+    instructionsRev: ISL list
+    instructionCost: int
+    canvas: Canvas
+    blocksControlled: Set<string>
+}
+
+type MCTSAction = 
+    | MidpointCut of Block
+    | PaintMedian of Block
+
+let rng = new System.Random()
+
+/// Pick n random elements from a sequence
+let pickRandomN (n: int) (seq: seq<'a>) =
+    if Seq.length seq <= n then seq else
+    seq
+    |> Seq.map (fun x -> (rng.Next(), x))
+    |> Seq.sortBy fst
+    |> Seq.take n
+    |> Seq.map snd
+
+let actions state =
+    state.blocksControlled
+    |> Seq.map (fun blockId -> Map.find blockId state.canvas.topBlocks)
+    |> Seq.filter (fun block ->
+        block.size.width > 1 &&
+        block.size.height > 1 &&
+        block.size.width * block.size.height > breakEvenNumberOfPixels)
+    |> pickRandomN 10
+    |> Seq.map (fun block -> [MidpointCut block; PaintMedian block])
+    |> Seq.concat
+    |> Array.ofSeq
+
+let step targetImage state action =
+    match action with
+    | PaintMedian block ->
+        let targetSlice = subslice targetImage block.size block.lowerLeft
+        let medianColor = approxMedianColor targetSlice
+        let isl = ISL.ColorBlock(block.id, medianColor)
+        let canvas, cost = simulate_step state.canvas isl
+        {
+            instructionsRev = isl :: state.instructionsRev
+            instructionCost = cost + state.instructionCost
+            canvas = canvas
+            blocksControlled = state.blocksControlled
+        }
+    | MidpointCut block ->
+        let isl = ISL.PointCut(block.id, { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 })
+        let canvas, cost = simulate_step state.canvas isl
+        {
+            instructionsRev = isl :: state.instructionsRev
+            instructionCost = cost + state.instructionCost
+            canvas = canvas
+            blocksControlled = state.blocksControlled.Remove(block.id).Add($"{block.id}.0").Add($"{block.id}.1").Add($"{block.id}.2").Add($"{block.id}.3")
+        }
+
+// Take random actions until we reach a state from which no actions are available
+let simulate targetImage state =
+    printfn "Simulating %d blocks" state.blocksControlled.Count
+    let mutable i = 0
+    let rec loop state =
+        let actions = actions state
+        if actions.Length = 0 then state else
+        let action = actions.[0] // Actions are already randomized
+        let state = step targetImage state action
+        i <- i + 1
+        loop state
+    let endState = loop state
+    printfn "Took %d iterations. Calculating distance" i
+    let distance =
+        Seq.sumBy (fun blockId ->
+            let block = Map.find blockId endState.canvas.topBlocks
+            let targetSlice = subslice targetImage block.size block.lowerLeft
+            let renderedBlock = renderBlock block
+            subImageDistance (sliceWholeImage renderedBlock) targetSlice
+        ) endState.blocksControlled
+    let similarity = int (System.Math.Round (distance * distanceScalingFactor))
+    printfn "Done"
+    similarity + endState.instructionCost
+
+/// Returns instructions, cost, and similarity (scaled)
+let mctsSolver (target: ImageSlice) (originalCanvas: Canvas) =
+    /// Returns reversed(!) instructions, cost, and distance (unscaled!)
+    let rec solveBlock canvas blockId =
+        let state = {
+            instructionsRev = []
+            instructionCost = 0
+            canvas = canvas
+            blocksControlled = Set.singleton blockId
+        }
+        match MCTS.mctsFindBestMove (actions) (step target) (simulate target) (sqrt 2.0) (1_000) state with
+        | None ->
+            let block = Map.find blockId canvas.topBlocks
+            let targetSlice = subslice target block.size block.lowerLeft
+            let renderedBlock = renderBlock block
+            let distance = subImageDistance (sliceWholeImage renderedBlock) targetSlice
+            ([], 0, distance)
+        | Some (_, state) ->
+            printfn "Recursing into %d blocks" state.blocksControlled.Count
+            // Recurse into the controlled blocks of the new state
+            Seq.fold (fun (instructionsRev, cost, distance) blockId ->
+                let (instructionsRev', cost', distance') = solveBlock state.canvas blockId
+                (instructionsRev' @ instructionsRev, cost' + cost, distance' + distance)
+            ) (state.instructionsRev, state.instructionCost, 0.0) state.blocksControlled
+    let (islRev, cost, distance) = solveBlock originalCanvas "0"
+    (List.rev islRev, cost, int (System.Math.Round (distanceScalingFactor * distance)))

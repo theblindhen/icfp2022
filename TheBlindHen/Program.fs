@@ -48,7 +48,7 @@ type Arguments =
             | SplitPoint _ -> "The split point to use"
             | Target _ -> "The target image to use"
 
-and AISelector = OneLiner | QuadTree
+and AISelector = OneLiner | QuadTree | MCTS
 and SplitPointSelector = Midpoint | HighestDistance
 
 [<EntryPoint>]
@@ -80,6 +80,21 @@ let main args =
             printfn "%s: Running quadtree solver" taskPath
             let solution, solverCost, solverSimilarity =
                 AI.quadtreeSolver splitpointSelector (sliceWholeImage task) canvas
+            let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
+            let solution_image = renderCanvas solution_canvas
+            let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
+            writeSolution taskPath solution (solution_cost + imageSimilarity)
+            if solverCost <> solution_cost then
+                printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
+                    taskPath solverCost solution_cost
+            if solverSimilarity <> imageSimilarity then
+                printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
+                    taskPath solverSimilarity imageSimilarity
+            solution
+        | Some (MCTS) ->
+            printfn "%s: Running MCTS solver" taskPath
+            let solution, solverCost, solverSimilarity =
+                AI.mctsSolver (sliceWholeImage task) canvas
             let (solution_canvas, solution_cost) = Instructions.simulate canvas solution
             let solution_image = renderCanvas solution_canvas
             let imageSimilarity = Util.imageSimilarity (sliceWholeImage task) (sliceWholeImage solution_image)
