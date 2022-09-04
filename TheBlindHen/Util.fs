@@ -148,8 +148,8 @@ let distanceScalingFactor = 0.005
 /// Returns a dinstance, meaning it's _not_ been scaled by distanceScalingFactor and rounded
 let singleColorDistance (proposal: Color) (target: ImageSlice) : float =
     let mutable score = 0.0
-    for x in 0 .. target.size.width-1 do
-        for y in 0 .. target.size.height-1 do
+    for y in 0 .. target.size.height-1 do
+        for x in 0 .. target.size.width-1 do
             let c2 = colorAtPos target {x=x; y=y}
             score <- score + colorDistance proposal c2
     score
