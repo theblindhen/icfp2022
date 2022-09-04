@@ -77,6 +77,20 @@ let solverMCTS : Solver = fun targetImage canvas ->
 let solverEagerSwapper : Solver = fun targetImage canvas ->
     Swapper.eagerSwapper targetImage canvas
 
+let penalty x =
+    match x with
+    | None -> 0
+    | Some (cost, similarity) -> cost + similarity
+
+let rerunSolver n (solver: Solver) img canvas =
+    let mutable bestSolution, lowestCosts = solver img canvas
+    for _ in 1..n do
+        let solution, costs = solver img canvas
+        if penalty costs < penalty lowestCosts then
+            bestSolution <- solution
+            lowestCosts <- costs
+    bestSolution, lowestCosts
+
 [<EntryPoint>]
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
@@ -106,7 +120,7 @@ let main args =
                 | Some (HighestDistance) -> AI.highestDistanceCut
             (solverQuadTree splitpointSelector, "quad-tree")
         | Some (MCTS) -> (solverMCTS, "MCTS")
-        | Some (Random) -> (solverRandom, "random")
+        | Some (Random) -> (rerunSolver 1_000 solverRandom, "random")
         | Some EagerSwapper -> (solverEagerSwapper, "eager-swapper")
     printfn "Task %s: Running %s solver" taskPath solverName
     let solution, goodnessOpt = solver targetImage initCanvas

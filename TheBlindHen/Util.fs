@@ -19,8 +19,25 @@ let averageColor_f (cols: Color seq) : (float*float*float*float) =
     let len = float len
     (float sum_r/len, float sum_g/len, float sum_b/len, float sum_a/len)
 
+let averageColorOfImg (img: ImageSlice) : (float*float*float*float) =
+    let mutable sum_r, sum_h, sum_b, sum_a, len = 0L, 0L, 0L, 0L, 0L
+    for y in 0 .. img.size.height-1 do
+        for x in 0 .. img.size.width-1 do
+            let c = colorAtPos img {x=x; y=y}
+            sum_r <- sum_r + int64 c.r
+            sum_h <- sum_h + int64 c.g
+            sum_b <- sum_b + int64 c.b
+            sum_a <- sum_a + int64 c.a
+            len <- len + 1L
+    (
+        System.Math.Round(float sum_r / float len),
+        System.Math.Round(float sum_h / float len),
+        System.Math.Round(float sum_b / float len),
+        System.Math.Round(float sum_a / float len)
+    )
+
 let averageColor (img: ImageSlice) : Color =
-    let (r_f, g_f, b_f, a_f) = averageColor_f (imageSlicePixels img)
+    let (r_f, g_f, b_f, a_f) = averageColorOfImg img
     {r=byte(r_f); g=byte(g_f); b=byte(b_f); a=byte(a_f)}
 
 // Treat c1 and c2 as 4-dimensional vectors and compute the Euclidean distance
@@ -121,10 +138,9 @@ let medianColor (img: ImageSlice) : Color =
 
 /// Returns the most frequent color and the number of pixels with that color
 let mostFrequentColor (img: ImageSlice) : Color * int =
-    let cols = Array.zeroCreate (img.size.width * img.size.height)
-    let counts = new System.Collections.Generic.Dictionary<Color, int>()
-    for x in 0 .. img.size.width-1 do
-        for y in 0 .. img.size.height-1 do
+    let counts = new System.Collections.Generic.Dictionary<Color, int>(img.size.height * img.size.width)
+    for y in 0 .. img.size.height-1 do
+        for x in 0 .. img.size.width-1 do
             let c = colorAtPos img {x=x; y=y}
             if counts.ContainsKey c then
                 counts.[c] <- counts.[c] + 1
