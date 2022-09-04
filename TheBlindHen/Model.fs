@@ -8,6 +8,8 @@ type Color =
       a: int }
       member this.toString () =
         sprintf "[%d, %d, %d, %d]" (this.r) (this.g) (this.b) (this.a)
+      member this.asInt () =
+        (this.r <<< 24) ||| (this.g <<< 16) ||| (this.b <<< 8) ||| this.a
 
 
 [<Struct>]

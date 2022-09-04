@@ -120,7 +120,7 @@ let main args =
             (solverQuadTree splitpointSelector, "quad-tree")
         | MCTS -> (solverMCTS, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
-        | AssignSwapper -> (Swapper.assignSwapper, "assign-swapper")
+        | AssignSwapper -> (Swapper.assignSwapperSimple, "assign-swapper-simple")
         | Random -> (rerunSolver 10_000 solverRandom, "random")
         | MergeMeta ->
             match results.GetResult (MergeAI) with
