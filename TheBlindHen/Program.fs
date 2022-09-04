@@ -38,7 +38,7 @@ type Arguments =
     | GUI
     | AI of AISelector option
     | SplitPoint of SplitPointSelector option
-    | [<MainCommand; ExactlyOnce; Last>] TaskNumber of task:string
+    | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
     interface IArgParserTemplate with
         member s.Usage =
@@ -46,22 +46,23 @@ type Arguments =
             | GUI -> "Show the GUI"
             | AI _ -> "The AI to use"
             | SplitPoint _ -> "The split point to use"
-            | TaskNumber _ -> "The task number to use"
+            | TaskPath _ -> "The task png path to use"
 
 and AISelector = OneLiner | QuadTree | MCTS | EagerSwapper
 and SplitPointSelector = Midpoint | HighestDistance
 
-type Solver = Image -> Canvas -> Instructions.ISL list * int * int
+type Solver = Image -> Canvas -> Instructions.ISL list * (int * int) option
 
 // TODO: These should take a task, not just a taskImage
 let solverOneLiner : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // oneLiner does not support non-blank initial canvas
     let startingBlock = canvas.topBlocks |> Map.find "0"
-    ([ AI.colorBlockMedian (sliceWholeImage targetImage) startingBlock ], -1, -1)
+    ([ AI.colorBlockMedian (sliceWholeImage targetImage) startingBlock ], None)
 
 let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // quadTree does not support non-blank initial canvas
-    AI.quadtreeSolver splitpointSelector (sliceWholeImage targetImage) canvas
+    let solution, solverCost, solverSimilarity = AI.quadtreeSolver splitpointSelector (sliceWholeImage targetImage) canvas
+    solution, Some(solverCost, solverSimilarity)
 
 let solverMCTS : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
@@ -74,20 +75,19 @@ let solverEagerSwapper : Solver = fun targetImage canvas ->
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
     let results = parser.Parse args
-    let taskNumber = results.GetResult (TaskNumber)
-    let targetImage, canvas =
-        let taskImagePath = sprintf "tasks/%s.png" taskNumber
-        let taskInitPath = sprintf "tasks/%s.initial.json" taskNumber
-        let targetImage = loadPNG taskImagePath
-        let canvas =
-            if IO.File.Exists taskInitPath then
-                loadSimpleCanvasJson taskInitPath
-            else 
-                blankCanvas {width = 400; height = 400}
-        (targetImage, canvas)
+    let taskPath = results.GetResult (TaskPath)
+    let targetImage = loadPNG taskPath
+    let initCanvas =
+        let taskFileInfo = System.IO.FileInfo (taskPath)
+        let taskInitPath = taskFileInfo.DirectoryName + "/" + taskFileInfo.Name.Split('.')[0] + ".initial.json"
+        if IO.File.Exists taskInitPath then
+            loadSimpleCanvasJson taskInitPath
+        else 
+            printfn "Canvas was blank"
+            blankCanvas {width = 400; height = 400}
     let (solver, solverName) = 
         match results.GetResult (AI) with
-        | None -> ((fun _ _ -> ([],-1,-1)), "no AI")
+        | None -> ((fun _ _ -> ([],None)), "no AI")
         | Some (OneLiner) -> (solverOneLiner, "one-line")
         | Some (QuadTree) ->
             let splitpointSelector =
@@ -98,19 +98,22 @@ let main args =
             (solverQuadTree splitpointSelector, "quad-tree")
         | Some (MCTS) -> (solverMCTS, "MCTS")
         | Some EagerSwapper -> (solverEagerSwapper, "eager-swapper")
-    printfn "Task %s: Running %s solver" taskNumber solverName
-    let solution, solverCost, solverSimilarity = solver targetImage canvas
-    let (solutionCanvas, solutionCost) = Instructions.simulate canvas solution
+    printfn "Task %s: Running %s solver" taskPath solverName
+    let solution, goodnessOpt = solver targetImage initCanvas
+    let (solutionCanvas, solutionCost) = Instructions.simulate initCanvas solution
     let solutionImage = renderCanvas solutionCanvas
     let imageSimilarity = Util.imageSimilarity (sliceWholeImage targetImage) (sliceWholeImage solutionImage)
-    writeSolution taskNumber solution (solutionCost + imageSimilarity)
-    if solverCost <> solutionCost then
-        printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
-            taskNumber solverCost solutionCost
-    if solverSimilarity <> imageSimilarity then
-        printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
-            taskNumber solverSimilarity imageSimilarity
+    writeSolution taskPath solution (solutionCost + imageSimilarity)
+    match goodnessOpt with
+    | None -> ()
+    | Some (solverCost, solverSimilarity) ->
+        if solverCost <> solutionCost then
+            printfn "WARNING: %s: Solver estimated cost %d, simulator estimated cost %d"
+                taskPath solverCost solutionCost
+        if solverSimilarity <> imageSimilarity then
+            printfn "WARNING: %s: Solver estimated similarity %d, simulator estimated similarity %d"
+                taskPath solverSimilarity imageSimilarity
     if results.Contains GUI then
         // GUI
-        showGui targetImage solution |> ignore
+        showGui initCanvas targetImage solution |> ignore
     0

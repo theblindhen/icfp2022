@@ -9,11 +9,13 @@ open Model
 open Instructions
 
 type Globals = {
+    mutable initCanvas: Model.Canvas option
     mutable target: Image option
     mutable solution: ISL list
 }
 
 let globals = {
+    initCanvas = None
     target = None
     solution = []
 }
@@ -27,6 +29,7 @@ module MVU =
     open Avalonia.Media.Imaging
 
     type State = {
+        InitCanvas: Model.Canvas option
         Target: Model.Image
         Solution: ISL list
         Scale: int
@@ -35,8 +38,9 @@ module MVU =
 
     type Msg = ZoomIn | ZoomOut | Step of int
 
-    let init (target: Model.Image, solution: ISL list): State * Cmd<Msg> =
+    let init (initCanvas: Model.Canvas, target: Model.Image, solution: ISL list): State * Cmd<Msg> =
         {
+            InitCanvas = Some(initCanvas)
             Target = target
             Solution = solution
             Scale = 1
@@ -51,8 +55,7 @@ module MVU =
         | Step i -> { state with Step = min (max (state.Step + i) 0) (List.length state.Solution) }, Cmd.none
 
     let viewSolution (state: State) =
-        let canvas = blankCanvas {width = 400; height = 400}
-        let (solution_canvas, solution_cost) = Instructions.simulate canvas (List.take state.Step state.Solution)
+        let (solution_canvas, solution_cost) = Instructions.simulate state.InitCanvas.Value (List.take state.Step state.Solution)
         let solution_image = renderCanvas solution_canvas
         let solution_bitmap = new Avalonia.Media.Imaging.Bitmap(Loader.toImageSharp solution_image |> Loader.toPngStream)
         [
@@ -148,7 +151,7 @@ type MainWindow() as this =
 
         Program.mkProgram MVU.init MVU.update MVU.view
         |> Program.withHost this
-        |> Program.runWith (Option.get globals.target, globals.solution)
+        |> Program.runWith (Option.get globals.initCanvas, Option.get globals.target, globals.solution)
 
 type App() =
     inherit Application()
@@ -163,7 +166,8 @@ type App() =
             desktopLifetime.MainWindow <- MainWindow()
         | _ -> ()
 
-let showGui target solution =
+let showGui initCanvas target solution =
+    globals.initCanvas <- Some(initCanvas)
     globals.target <- Some target
     globals.solution <- solution
     AppBuilder

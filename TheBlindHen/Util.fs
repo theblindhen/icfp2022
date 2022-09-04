@@ -36,7 +36,6 @@ let colorDistanceSeq (cols: Color seq) (est: Color) =
     |> Seq.map (colorDistance est)
     |> Seq.sum
 
-
 let medianColorSeq (cols: Color seq) : Color =
     let fcols = cols
                 |> List.ofSeq
@@ -145,6 +144,16 @@ let approxMedianColor (img: ImageSlice) : Color =
 
 let distanceScalingFactor = 0.005
 
+/// The distance between the target block and a constant color
+/// Returns a dinstance, meaning it's _not_ been scaled by distanceScalingFactor and rounded
+let singleColorDistance (proposal: Color) (target: ImageSlice) : float =
+    let mutable score = 0.0
+    for x in 0 .. target.size.width-1 do
+        for y in 0 .. target.size.height-1 do
+            let c2 = colorAtPos target {x=x; y=y}
+            score <- score + colorDistance proposal c2
+    score
+
 /// Returns a distance, meaning it's _not_ scaled by distanceScalingFactor
 let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
     assert (proposal.size = target.size)
@@ -156,6 +165,6 @@ let subImageDistance (proposal: ImageSlice) (target: ImageSlice) : float =
             score <- score + colorDistance c1 c2
     score
 
-// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
+/// Returns a similarity, meaning it has been scaled by distanceScalingFactor and rounded
 let imageSimilarity (proposal: ImageSlice) (target: ImageSlice) : int =
     int (System.Math.Round (subImageDistance proposal target * distanceScalingFactor))
