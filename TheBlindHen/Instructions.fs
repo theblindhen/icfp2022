@@ -145,10 +145,8 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
             | _ -> failwith "Unknown type of block"
         { canvas with
             topBlocks = canvas.topBlocks
-            |> Map.remove blockId1
-            |> Map.remove blockId2
-            |> Map.add blockId1 (blockWithLowerLeft block2 block1.lowerLeft)
-            |> Map.add blockId2 (blockWithLowerLeft block1 block2.lowerLeft) }, cost
+            |> Map.add blockId1 (blockWithLowerLeft block1 block2.lowerLeft)
+            |> Map.add blockId2 (blockWithLowerLeft block2 block1.lowerLeft) }, cost
     | ISL.MergeBlocks (blockId1, blockId2) ->
         let maxTopId = canvas.maxTopId
         let block1 = Map.find blockId1 canvas.topBlocks

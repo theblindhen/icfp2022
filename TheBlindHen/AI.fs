@@ -152,8 +152,8 @@ let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
     if result >= upperBound then upperBound - 1 else result
 
 /// Returns instructions, cost, and similarity (scaled)
-let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
-    let topBlock = canvas.topBlocks |> Map.find "0"
+let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
+    let topBlock = canvas.topBlocks |> Map.find blockId
     let canvasArea = float (topBlock.size.width * topBlock.size.height)
     /// Returns instructions, cost, and distance (not scaled)
     /// The candidateColor parameter is the color of the parent block.
@@ -256,7 +256,7 @@ let fastRandomSolver (target: ImageSlice) (canvas: Canvas) : ISL list * int * in
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
     let targetMedian = approxAverageColor target
     let targetMedianDistance = approxSingleColorDistance targetMedian target
-    let isl, cost, distance = solve "0" target targetMedian targetMedianDistance {r = 255; g = 255; b = 255; a = 255}
+    let isl, cost, distance = solve blockId target targetMedian targetMedianDistance currColor
     (isl, cost, distanceToSimilarity distance)
 
 type MCTSState = {
