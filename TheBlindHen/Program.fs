@@ -62,8 +62,10 @@ let printSolutionStats () =
                     (i, scoreSolution targetImage initCanvas solution) ]
     for (task, (cost, similarity)) in scores do
         printfn "Task %d penalty: %d\tCost: %d\tSimilarity: %d" task (cost+similarity) cost similarity 
-    let totalPenalty = scores |> List.map (fun (task, (cost, similarity)) -> cost+similarity) |> List.sum
-    printfn "Total penalty: %d" totalPenalty
+    let totalCost = scores |> List.map (fun (_, (cost, _)) -> cost) |> List.sum
+    let totalSimilarity = scores |> List.map (fun (_, (_, similarity)) -> similarity) |> List.sum
+    let totalPenalty = totalCost + totalSimilarity
+    printfn "Total: %d\tCost: %d\tSimilarity: %d" totalPenalty totalCost totalSimilarity
         
 
 type Arguments =
