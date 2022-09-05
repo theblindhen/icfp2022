@@ -180,6 +180,12 @@ let approxMostFrequentColor (img: ImageSlice): Color =
     let max = counts |> Seq.maxBy (fun kv -> kv.Value)
     max.Key
 
+let pickNRandomColors n (img: ImageSlice): Color list =
+    [ for _ in 1 .. n do
+        let x = Rng.rng.Next(img.size.width)
+        let y = Rng.rng.Next(img.size.height)
+        colorAtPos img {x=x; y=y} ]
+
 /// If the number of pixels with the most frequent color is above a certain
 /// threshold, return that color.  Otherwise, return the median color.
 let approxMedianColor (img: ImageSlice) : Color =

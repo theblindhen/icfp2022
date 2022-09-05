@@ -204,7 +204,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 |> Array.map (fun (slice, sliceId) ->
                     // Calculate the median for each slice.
                     // Pass that into the recursion so it's not recomputed.
-                    let sliceMedian = approxMostFrequentColor slice
+                    let sliceMedian = approxAverageColor slice
                     let sliceMedianDistance = approxSingleColorDistance sliceMedian slice
                     let (isl, cost, distance) = solve sliceId slice sliceMedian sliceMedianDistance candidateColor
                     let benefitFromInheritingColor =
@@ -253,7 +253,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 + (noopSlices |> Array.map (fun (_, _, distance) -> distance) |> Array.sum)
             [(instructions, cost, distance)]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let targetMedian = approxMostFrequentColor target
+    let targetMedian = approxAverageColor target
     let targetMedianDistance = approxSingleColorDistance targetMedian target
     let isl, cost, distance = solve blockId target targetMedian targetMedianDistance currColor
     (isl, cost, distanceToSimilarity distance)
@@ -274,6 +274,7 @@ type MCTSAction =
     | PointCut of Block * PCut
     | LineCut of Block * LCut
     | PaintMedian of Block
+    | PaintColor of Block * Color
     | Stop
 
 /// Pick n random elements from a sequence
@@ -285,7 +286,7 @@ let pickRandomN (n: int) (seq: seq<'a>) =
     |> Seq.take n
     |> Seq.map snd
 
-let actions state =
+let actions colors state =
     if state.stopped then [||] else
     state.blocksControlled
     |> Seq.map (fun blockId -> Map.find blockId state.canvas.topBlocks)
@@ -300,7 +301,8 @@ let actions state =
         PointCut(block, Contrast)::
         LineCut(block, LeftVCut)::LineCut(block, RightVCut)::LineCut(block, TopHCut)::LineCut(block, BottomHCut)::
         LineCut(block, MidVCut)::LineCut(block, MidHCut)::
-        (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
+        (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]) @
+        List.map (fun color -> PaintColor(block, color)) colors)
     |> Seq.concat
     |> Seq.append (Seq.singleton Stop)
     |> Array.ofSeq
@@ -346,8 +348,19 @@ let step targetImage state action =
     match action with
     | PaintMedian block ->
         let targetSlice = subslice targetImage block.size block.lowerLeft
-        let medianColor = approxMostFrequentColor targetSlice
+        let medianColor = approxMedianColor targetSlice
         let isl = ISL.ColorBlock(block.id, medianColor)
+        let canvas, cost = simulate_step state.canvas isl
+        {
+            instructionsRev = isl :: state.instructionsRev
+            instructionCost = cost + state.instructionCost
+            canvas = canvas
+            blocksControlled = state.blocksControlled
+            blocksPainted = state.blocksPainted.Add(block.id)
+            stopped = false
+        }
+    | PaintColor(block, color) ->
+        let isl = ISL.ColorBlock(block.id, color)
         let canvas, cost = simulate_step state.canvas isl
         {
             instructionsRev = isl :: state.instructionsRev
@@ -407,6 +420,7 @@ let simulate targetImage state =
 /// Returns instructions, cost, and similarity (scaled)
 let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) =
     let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+    let colors = pickNRandomColors 10 target |> List.distinct
     /// Returns reversed(!) instructions, cost, and distance (unscaled!)
     let rec solveBlock canvas blockId =
         let localStopWatch = System.Diagnostics.Stopwatch.StartNew()
@@ -418,7 +432,7 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
             blocksPainted = Set.empty
             stopped = false
         }
-        match MCTS.mctsFindBestMove (actions) (step target) (simulate target) (sqrt 2.0) repetitions state with
+        match MCTS.mctsFindBestMove (actions colors) (step target) (simulate target) (sqrt 2.0) repetitions state with
         | None ->
             let block = Map.find blockId canvas.topBlocks
             let targetSlice = subslice target block.size block.lowerLeft
@@ -429,6 +443,7 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
             let description =
                 match action with
                 | Stop -> "Stop"
+                | PaintColor (_, color) -> sprintf "Painting color %s" (color.toString())
                 | PaintMedian _ -> sprintf "Painting median"
                 | PointCut (_, cut) -> sprintf "%A point cut" cut
                 | LineCut (_, cut) -> sprintf "%A line cut" cut
