@@ -143,6 +143,81 @@ let optimizeColors (target: Image) (initCanvas: Canvas) (isl: ISL list) =
         | _ -> ()
     Array.toList isl
 
+type ColorTarget = Parent of Color | Sub1 of Color | Sub2 of Color
+/// Go through all simple blocks, and use exhaustive search to check whether
+/// there is a sub-division which improves the cost.
+let optiSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL list =
+    let finalCanvas, originalCost = simulate initCanvas isl
+    let simpleBlocks = Map.map (fun _ (b: Block) -> b :?> SimpleBlock) finalCanvas.topBlocks 
+    let minMargin = 3
+    let mostEfficientColoring (b: SimpleBlock) (color1: Color, size1: Size) (color2: Color, size2: Size) =
+        [ yield (if color1 = b.color then [] else [ Parent color1 ]) @ [ Sub2 color2 ]
+          yield (if color2 = b.color then [] else [ Parent color2 ]) @ [ Sub1 color1 ] ]
+        |> List.map (fun targets ->
+            (targets, 
+             targets
+             |> List.map (function
+                         | Parent _ -> islCost initCanvas ISLOps.ColorBlock b.size
+                         | Sub1 _ -> islCost initCanvas ISLOps.LineCut size1
+                         | Sub2 _ -> islCost initCanvas ISLOps.LineCut size2)
+             |> List.sum))
+        |> List.minBy snd
+    let trySubdivide (b: SimpleBlock) =
+        let currentSimilarity = singleColorSimilarity b.color (sliceImage target b.size b.lowerLeft)
+        let costOfCut = islCost initCanvas ISLOps.LineCut b.size
+        if currentSimilarity < costOfCut then None
+        else
+            // Vertical cuts
+            let bestVertical = 
+                let ls =
+                    [ minMargin .. b.size.width - minMargin ]
+                    |> List.map (fun x ->
+                            let sizeLeft = { width = x; height = b.size.height }
+                            let sliceLeft = sliceImage target sizeLeft b.lowerLeft
+                            let medianLeft = medianColor sliceLeft
+                            let similarityLeft = singleColorSimilarity medianLeft sliceLeft
+                            if currentSimilarity < costOfCut + similarityLeft then None
+                            else
+                            let sizeRight = { width = b.size.width - x; height = b.size.height }
+                            let rightLowerLeft = {x=b.lowerLeft.x+x; y=b.lowerLeft.y}
+                            let sliceRight = sliceImage target sizeRight rightLowerLeft
+                            let medianRight = medianColor sliceRight
+                            let similarityRight = singleColorSimilarity medianRight sliceRight
+                            let bestColoring, coloringCost = mostEfficientColoring b (medianLeft, sizeLeft) (medianRight, sizeRight)
+                            if currentSimilarity < costOfCut + similarityLeft + similarityRight + coloringCost then
+                                None
+                            else
+                                Some (V, x, bestColoring, costOfCut + similarityLeft + similarityRight + coloringCost))
+                    |> List.choose id
+                if ls = [] then []
+                else
+                    [ ls |> List.minBy (fun (_, _, _, cost) -> cost) ]
+            // TODO: Horizontal cuts
+            let contenders = bestVertical
+            if contenders = [] then None
+            else
+            let (dir, offset, coloring, _) = contenders |> List.minBy (fun (_, _, _, cost) -> cost)
+            let preColor =
+                match List.tryFind (function Parent _ -> true | _ -> false) coloring with
+                | Some (Parent c) -> [ ISL.ColorBlock (b.id, c) ]
+                | _ -> []
+            let cut = ISL.LineCut (b.id, dir, offset)
+            let postColor =
+                coloring
+                |> List.map (function
+                             | Sub1 c -> Some (ISL.ColorBlock (b.id + ".0", c))
+                             | Sub2 c -> Some (ISL.ColorBlock (b.id + ".1", c))
+                             | _ -> None)
+                |> List.choose id
+            Some (preColor @ [cut] @ postColor)
+    let subdivides = [
+        for b in Map.values simpleBlocks do
+            match trySubdivide b with
+            | None -> ()
+            | Some sub -> yield! sub ]
+    isl @ subdivides
+
+
 let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL list) list) =
     solutions
     |> List.map (fun (name, solution) ->
