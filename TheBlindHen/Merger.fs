@@ -12,18 +12,19 @@ let mergeGrid (canvas: Canvas) (dir: Direction) (step: int) (offset: int) : ISL 
     match canvasGridInfo canvas with
     | None -> failwith "Canvas is not a grid"
     | Some gridInfo ->
-    let blockMap, idToPositions = positionMap canvas
+    let blockMap = blockMap canvas
+    let idToPositions = positionsFromBlockMap blockMap
     let cellToPosId =
         idToPositions
         |> Map.toSeq
         |> Seq.map (fun (posId, (pos, _)) -> {x=pos.x/gridInfo.cellSize.width;y=pos.y/gridInfo.cellSize.height}, posId)
         |> Map.ofSeq
-    let globalCounter = ref (Map.count canvas.topBlocks)
+    let mutable globalCounter = Map.count canvas.topBlocks
     let mergeBlocks blockIds =
         List.fold (fun (isl, prevId) curId ->
             let merge = ISL.MergeBlocks(prevId, curId)
-            globalCounter := !globalCounter + 1
-            (merge::isl, string (!globalCounter))
+            globalCounter <- globalCounter + 1
+            (merge::isl, string globalCounter)
         ) ([], List.head blockIds) (List.tail blockIds)
         |> fst
         |> List.rev

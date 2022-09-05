@@ -155,7 +155,7 @@ let main args =
                 | Some n -> n
             (solverMCTS repetitions, "MCTS")
         | EagerSwapper -> (Swapper.eagerSwapper, "eager-swapper")
-        | AssignSwapper -> (Swapper.assignSwapperSimple, "assign-swapper-simple")
+        | AssignSwapper -> (Swapper.assignSwapperStrategy Swapper.simpleGridSwapping, "assign-swapper-simple")
         | Random ->
             let repetitions =
                 match results.TryGetResult (Repetitions) with

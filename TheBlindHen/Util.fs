@@ -243,14 +243,16 @@ let canvasGridInfo canvas : GridInfo option =
 
 /// Create a permanent numbering of each location of a block in the canvas.
 /// This is mainly used for initialized grid-like canvases
-let positionMap (canvas: Canvas) =
-    let (_, blockMap, positions) =
+let blockMap (canvas: Canvas) =
+    let (_, blockMap) =
         Map.values canvas.topBlocks
         |> List.ofSeq
         |> List.sortBy (fun b -> b.lowerLeft.y * canvas.size.width + b.lowerLeft.x)
-        |> Seq.fold (fun (n, blockMap, positionMap) block ->
-                (n+1,
-                Map.add n (block :?> SimpleBlock) blockMap,
-                Map.add n (block.lowerLeft, block.size) positionMap)
-            ) (0, Map.empty, Map.empty)
-    (blockMap, positions)
+        |> Seq.fold (fun (n, blockMap) block ->
+                (n+1, Map.add n block blockMap)
+            ) (0, Map.empty)
+    blockMap
+
+let positionsFromBlockMap (blockMap: Map<int, Block>) =
+    blockMap
+    |> Map.map (fun _ block -> (block.lowerLeft, block.size))
