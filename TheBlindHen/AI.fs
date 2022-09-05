@@ -205,7 +205,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 |> Array.map (fun (slice, sliceId) ->
                     // Calculate the median for each slice.
                     // Pass that into the recursion so it's not recomputed.
-                    let sliceMedian = approxMostFrequentColor slice
+                    let sliceMedian = approxAverageColor slice
                     let sliceMedianDistance = approxSingleColorDistance sliceMedian slice
                     let (isl, cost, distance) = solve sliceId slice sliceMedian sliceMedianDistance candidateColor
                     let benefitFromInheritingColor =
@@ -254,7 +254,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 + (noopSlices |> Array.map (fun (_, _, distance) -> distance) |> Array.sum)
             [(instructions, cost, distance)]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let targetMedian = approxMostFrequentColor target
+    let targetMedian = approxAverageColor target
     let targetMedianDistance = approxSingleColorDistance targetMedian target
     let isl, cost, distance = solve blockId target targetMedian targetMedianDistance currColor
     (isl, cost, distanceToSimilarity distance)
@@ -268,13 +268,14 @@ type MCTSState = {
     stopped: bool
 }
 
-type PCut = Left | Mid | Right | Top | Bottom | TopLeft | TopRight | BottomLeft | BottomRight | Contrast
-type LCut = LeftVCut | RightVCut | TopHCut | BottomHCut | MidVCut | MidHCut | HContrast | VContrast
+type PCut = RandomPoint of float * float | Contrast
+type LCut = RandomVLine of float | RandomHLine of float | HContrast | VContrast
 
 type MCTSAction = 
     | PointCut of Block * PCut
     | LineCut of Block * LCut
     | PaintMedian of Block
+    | PaintColor of Block * Color
     | Stop
 
 /// Pick n random elements from a sequence
@@ -286,7 +287,13 @@ let pickRandomN (n: int) (seq: seq<'a>) =
     |> Seq.take n
     |> Seq.map snd
 
-let actions state =
+let randomSemiNormal () =
+    let x1 = Rng.rng.NextDouble()
+    let x2 = Rng.rng.NextDouble()
+    let x3 = Rng.rng.NextDouble()
+    (x1 + x2 + x3) / 3.0
+
+let actions colors state =
     if state.stopped then [||] else
     state.blocksControlled
     |> Seq.map (fun blockId -> Map.find blockId state.canvas.topBlocks)
@@ -296,27 +303,20 @@ let actions state =
         block.size.width * block.size.height > breakEvenNumberOfPixels)
     |> pickRandomN 5
     |> Seq.map (fun block -> 
-        PointCut(block, Top)::PointCut(block, Mid)::PointCut(block, Bottom)::PointCut(block, Left)::PointCut(block, Right)::
-        PointCut(block, TopLeft)::PointCut(block, TopRight)::PointCut(block, BottomLeft)::PointCut(block, BottomRight)::
-        PointCut(block, Contrast)::
-        LineCut(block, LeftVCut)::LineCut(block, RightVCut)::LineCut(block, TopHCut)::LineCut(block, BottomHCut)::
-        LineCut(block, MidVCut)::LineCut(block, MidHCut)::
-        (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
+        PointCut(block, Contrast)::LineCut(block, HContrast)::LineCut(block, VContrast)::
+        [ for _ in 1..5 do PointCut(block, RandomPoint(randomSemiNormal (), randomSemiNormal ())) ] @
+        [ for _ in 1..3 do LineCut(block, RandomVLine(randomSemiNormal ())) ] @
+        [ for _ in 1..3 do LineCut(block, RandomHLine(randomSemiNormal ())) ] @
+        (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]) @
+        List.map (fun color -> PaintColor(block, color)) colors)
     |> Seq.concat
     |> Seq.append (Seq.singleton Stop)
     |> Array.ofSeq
 
 let cutpoint cut (block: Block) targetSlice =
     match cut with 
-    | Left -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 2 }
-    | Mid -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 }
-    | Right -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 2 }
-    | Top -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height * 3 / 4 }
-    | Bottom -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 4 }
-    | TopLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height *3 / 4 }
-    | TopRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height * 3 / 4 }
-    | BottomLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 4 }
-    | BottomRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 4 }
+    | RandomPoint(xScale, yScale) ->
+        { x = block.lowerLeft.x + int (float block.size.width * xScale) ; y = block.lowerLeft.y + int (float block.size.height * yScale) }
     | Contrast ->
         match highestDistanceCut targetSlice with
         | Some x, Some y -> { x = block.lowerLeft.x + x; y = block.lowerLeft.y + y }
@@ -324,12 +324,8 @@ let cutpoint cut (block: Block) targetSlice =
 
 let offset cut (block: Block) targetSlice: Direction * int =
     match cut with
-    | LeftVCut -> V, block.lowerLeft.x + block.size.width / 4
-    | RightVCut -> V, block.lowerLeft.x + block.size.width * 3 / 4
-    | MidVCut -> V, block.lowerLeft.x + block.size.width / 2
-    | TopHCut -> H, block.lowerLeft.y + block.size.height * 3 / 4
-    | BottomHCut -> H, block.lowerLeft.y + block.size.height / 4
-    | MidHCut -> H, block.lowerLeft.y + block.size.height / 2
+    | RandomHLine yScale -> H, block.lowerLeft.y + int (float block.size.height * yScale)
+    | RandomVLine xScale -> V, block.lowerLeft.x + int (float block.size.width * xScale)
     | HContrast ->
         let offset =
             match highestDistanceHorizontalCut targetSlice with
@@ -347,8 +343,19 @@ let step targetImage state action =
     match action with
     | PaintMedian block ->
         let targetSlice = subslice targetImage block.size block.lowerLeft
-        let medianColor = approxMostFrequentColor targetSlice
+        let medianColor = approxMedianColor targetSlice
         let isl = ISL.ColorBlock(block.id, medianColor)
+        let canvas, cost = simulate_step state.canvas isl
+        {
+            instructionsRev = isl :: state.instructionsRev
+            instructionCost = cost + state.instructionCost
+            canvas = canvas
+            blocksControlled = state.blocksControlled
+            blocksPainted = state.blocksPainted.Add(block.id)
+            stopped = false
+        }
+    | PaintColor(block, color) ->
+        let isl = ISL.ColorBlock(block.id, color)
         let canvas, cost = simulate_step state.canvas isl
         {
             instructionsRev = isl :: state.instructionsRev
@@ -408,6 +415,7 @@ let simulate targetImage state =
 /// Returns instructions, cost, and similarity (scaled)
 let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) =
     let stopWatch = System.Diagnostics.Stopwatch.StartNew()
+    let colors = pickNRandomColors 10 target |> List.distinct
     /// Returns reversed(!) instructions, cost, and distance (unscaled!)
     let rec solveBlock canvas blockId =
         let localStopWatch = System.Diagnostics.Stopwatch.StartNew()
@@ -419,7 +427,7 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
             blocksPainted = Set.empty
             stopped = false
         }
-        match MCTS.mctsFindBestMove (actions) (step target) (simulate target) (sqrt 2.0) repetitions state with
+        match MCTS.mctsFindBestMove (actions colors) (step target) (simulate target) (sqrt 2.0) repetitions state with
         | None ->
             let block = Map.find blockId canvas.topBlocks
             let targetSlice = subslice target block.size block.lowerLeft
@@ -430,6 +438,7 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
             let description =
                 match action with
                 | Stop -> "Stop"
+                | PaintColor (_, color) -> sprintf "Painting color %s" (color.toString())
                 | PaintMedian _ -> sprintf "Painting median"
                 | PointCut (_, cut) -> sprintf "%A point cut" cut
                 | LineCut (_, cut) -> sprintf "%A line cut" cut

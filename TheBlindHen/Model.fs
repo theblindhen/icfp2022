@@ -11,6 +11,11 @@ type Color =
       member this.asInt () =
         (this.r <<< 24) ||| (this.g <<< 16) ||| (this.b <<< 8) ||| this.a
 
+let colorOfInt (i: int) =
+    { r = (i >>> 24) &&& 0xFF
+      g = (i >>> 16) &&& 0xFF
+      b = (i >>> 8) &&& 0xFF
+      a = i &&& 0xFF }
 
 [<Struct>]
 type Size =
@@ -58,7 +63,7 @@ let subslice (img: ImageSlice) (size: Size) (offset: Position) =
 let colorAtPosImg (img: Image) (pos: Position) : Color =
     img.pixels[pos.y * img.size.width + pos.x]
 
-let colorAtPos (img: ImageSlice) (pos: Position) : Color =
+let inline colorAtPos (img: ImageSlice) (pos: Position) : Color =
     img._img.pixels[(img.offset.y + pos.y) * img._img.size.width + (img.offset.x + pos.x)]
 
 

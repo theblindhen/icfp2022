@@ -153,32 +153,38 @@ let medianColor (img: ImageSlice) : Color =
 
 /// Returns the most frequent color and the number of pixels with that color
 let mostFrequentColor (img: ImageSlice) : Color * int =
-    let counts = new System.Collections.Generic.Dictionary<Color, int>(img.size.height * img.size.width)
+    let counts = new System.Collections.Generic.Dictionary<int, int>(img.size.height * img.size.width)
     for y in 0 .. img.size.height-1 do
         for x in 0 .. img.size.width-1 do
-            let c = colorAtPos img {x=x; y=y}
+            let c = (colorAtPos img {x=x; y=y}).asInt()
             if counts.ContainsKey c then
                 counts.[c] <- counts.[c] + 1
             else
                 counts.[c] <- 1
     let max = counts |> Seq.maxBy (fun kv -> kv.Value)
-    max.Key, max.Value
+    colorOfInt max.Key, max.Value
 
 let approxMostFrequentColor (img: ImageSlice): Color =
     let area = img.size.height * img.size.width
     if area <= 100 then mostFrequentColor img |> fst else
     let cutoffpoint = if area <= 500 then 50 else 100
-    let counts = new System.Collections.Generic.Dictionary<Color, int>(img.size.height * img.size.width)
+    let counts = new System.Collections.Generic.Dictionary<int, int>(img.size.height * img.size.width)
     for _ in 1 .. cutoffpoint do
         let x = Rng.rng.Next(img.size.width)
         let y = Rng.rng.Next(img.size.height)
-        let c = colorAtPos img {x=x; y=y}
+        let c = (colorAtPos img {x=x; y=y}).asInt()
         if counts.ContainsKey c then
             counts.[c] <- counts.[c] + 1
         else
             counts.[c] <- 1
     let max = counts |> Seq.maxBy (fun kv -> kv.Value)
-    max.Key
+    colorOfInt max.Key
+
+let pickNRandomColors n (img: ImageSlice): Color list =
+    [ for _ in 1 .. n do
+        let x = Rng.rng.Next(img.size.width)
+        let y = Rng.rng.Next(img.size.height)
+        colorAtPos img {x=x; y=y} ]
 
 /// If the number of pixels with the most frequent color is above a certain
 /// threshold, return that color.  Otherwise, return the median color.
