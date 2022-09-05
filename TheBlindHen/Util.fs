@@ -164,6 +164,22 @@ let mostFrequentColor (img: ImageSlice) : Color * int =
     let max = counts |> Seq.maxBy (fun kv -> kv.Value)
     max.Key, max.Value
 
+let approxMostFrequentColor (img: ImageSlice): Color =
+    let area = img.size.height * img.size.width
+    if area <= 100 then mostFrequentColor img |> fst else
+    let cutoffpoint = if area <= 500 then 50 else 100
+    let counts = new System.Collections.Generic.Dictionary<Color, int>(img.size.height * img.size.width)
+    for _ in 1 .. cutoffpoint do
+        let x = Rng.rng.Next(img.size.width)
+        let y = Rng.rng.Next(img.size.height)
+        let c = colorAtPos img {x=x; y=y}
+        if counts.ContainsKey c then
+            counts.[c] <- counts.[c] + 1
+        else
+            counts.[c] <- 1
+    let max = counts |> Seq.maxBy (fun kv -> kv.Value)
+    max.Key
+
 /// If the number of pixels with the most frequent color is above a certain
 /// threshold, return that color.  Otherwise, return the median color.
 let approxMedianColor (img: ImageSlice) : Color =
