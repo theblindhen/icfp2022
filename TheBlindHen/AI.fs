@@ -267,10 +267,12 @@ type MCTSState = {
     stopped: bool
 }
 
-type Cut = Left | Mid | Right | Top | Bottom | TopLeft | TopRight | BottomLeft | BottomRight
+type PCut = Left | Mid | Right | Top | Bottom | TopLeft | TopRight | BottomLeft | BottomRight | Contrast
+type LCut = LeftVCut | RightVCut | TopHCut | BottomHCut | MidVCut | MidHCut | HContrast | VContrast
 
 type MCTSAction = 
-    | PointCut of Block * Cut
+    | PointCut of Block * PCut
+    | LineCut of Block * LCut
     | PaintMedian of Block
     | Stop
 
@@ -295,12 +297,15 @@ let actions state =
     |> Seq.map (fun block -> 
         PointCut(block, Top)::PointCut(block, Mid)::PointCut(block, Bottom)::PointCut(block, Left)::PointCut(block, Right)::
         PointCut(block, TopLeft)::PointCut(block, TopRight)::PointCut(block, BottomLeft)::PointCut(block, BottomRight)::
+        PointCut(block, Contrast)::
+        LineCut(block, LeftVCut)::LineCut(block, RightVCut)::LineCut(block, TopHCut)::LineCut(block, BottomHCut)::
+        LineCut(block, MidVCut)::LineCut(block, MidHCut)::
         (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
     |> Seq.concat
     |> Seq.append (Seq.singleton Stop)
     |> Array.ofSeq
 
-let cutpoint cut (block: Block) = 
+let cutpoint cut (block: Block) targetSlice =
     match cut with 
     | Left -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 2 }
     | Mid -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 }
@@ -311,6 +316,31 @@ let cutpoint cut (block: Block) =
     | TopRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height * 3 / 4 }
     | BottomLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 4 }
     | BottomRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 4 }
+    | Contrast ->
+        match highestDistanceCut targetSlice with
+        | Some x, Some y -> { x = block.lowerLeft.x + x; y = block.lowerLeft.y + y }
+        | _ -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 }
+
+let offset cut (block: Block) targetSlice: Direction * int =
+    match cut with
+    | LeftVCut -> V, block.lowerLeft.x + block.size.width / 4
+    | RightVCut -> V, block.lowerLeft.x + block.size.width * 3 / 4
+    | MidVCut -> V, block.lowerLeft.x + block.size.width / 2
+    | TopHCut -> H, block.lowerLeft.y + block.size.height * 3 / 4
+    | BottomHCut -> H, block.lowerLeft.y + block.size.height / 4
+    | MidHCut -> H, block.lowerLeft.y + block.size.height / 2
+    | HContrast ->
+        let offset =
+            match highestDistanceHorizontalCut targetSlice with
+            | Some y -> block.lowerLeft.y + y
+            | None -> block.lowerLeft.y + block.size.height / 2
+        (H, offset)
+    | VContrast ->
+        let offset =
+            match highestDistanceVerticalCut targetSlice with
+            | Some x -> block.lowerLeft.x + x
+            | None -> block.lowerLeft.x + block.size.width / 2
+        (V, offset)
 
 let step targetImage state action =
     match action with
@@ -327,8 +357,22 @@ let step targetImage state action =
             blocksPainted = state.blocksPainted.Add(block.id)
             stopped = false
         }
+    | LineCut (block, cut) ->
+        let targetSlice = subslice targetImage block.size block.lowerLeft
+        let dir, offset = offset cut block targetSlice
+        let isl = ISL.LineCut(block.id, dir, offset)
+        let canvas, cost = simulate_step state.canvas isl
+        {
+            instructionsRev = isl :: state.instructionsRev
+            instructionCost = cost + state.instructionCost
+            canvas = canvas
+            blocksControlled = state.blocksControlled.Remove(block.id).Add($"{block.id}.0").Add($"{block.id}.1")
+            blocksPainted = state.blocksPainted.Remove(block.id)
+            stopped = false
+        }
     | PointCut (block, cut) ->
-        let isl = ISL.PointCut(block.id, cutpoint cut block)
+        let targetSlice = subslice targetImage block.size block.lowerLeft
+        let isl = ISL.PointCut(block.id, cutpoint cut block targetSlice)
         let canvas, cost = simulate_step state.canvas isl
         {
             instructionsRev = isl :: state.instructionsRev
@@ -386,7 +430,8 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
                 match action with
                 | Stop -> "Stop"
                 | PaintMedian _ -> sprintf "Painting median"
-                | PointCut (_, cut) -> sprintf "%A cut" cut
+                | PointCut (_, cut) -> sprintf "%A point cut" cut
+                | LineCut (_, cut) -> sprintf "%A line cut" cut
             printfn "%20s (+%10dms, %10dms total): %s" blockId localStopWatch.ElapsedMilliseconds stopWatch.ElapsedMilliseconds description
             if state.stopped then 
                 let block = Map.find blockId canvas.topBlocks 

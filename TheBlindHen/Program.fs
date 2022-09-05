@@ -82,9 +82,9 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
     solution, Some(solverCost, solverSimilarity)
 
 let solverRandom : Solver = fun targetImage canvas ->
-    assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
+    assert (Map.count canvas.topBlocks = 1) // Random does not support non-blank initial canvas
     let initialBlock = Map.keys canvas.topBlocks |> Seq.head
-    let solution, solverCost, solverSimilarity = AI.fastRandomSolver initialBlock {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
+    let solution, solverCost, solverSimilarity = AI.fastRandomSolver initialBlock  {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
 let solverMCTS repetitions : Solver = fun targetImage canvas ->
