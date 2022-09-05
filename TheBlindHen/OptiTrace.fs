@@ -39,7 +39,7 @@ let colorCostsInside canvas (simpleBlocks: Map<string, SimpleBlock>) (id: string
 /// emitting the Color instructions in the trace as they are encountered, always
 /// precede a cut operation with a Color instruction that colors the smallest
 /// block contained in the cut block.
-let optiColorTraceNaive (target: Image) (initCanvas: Canvas) (isl: ISL list) =
+let optimizeColorTraceNaive (target: Image) (initCanvas: Canvas) (isl: ISL list) =
     let finalCanvas, originalCost = simulate initCanvas isl
     let simpleBlocks = Map.map (fun _ (b: Block) -> b :?> SimpleBlock) finalCanvas.topBlocks 
     let optimized =
@@ -146,7 +146,7 @@ let optimizeColors (target: Image) (initCanvas: Canvas) (isl: ISL list) =
 type ColorTarget = Parent of Color | Sub1 of Color | Sub2 of Color
 /// Go through all simple blocks, and use exhaustive search to check whether
 /// there is a sub-division which improves the cost.
-let optiSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL list =
+let optimizeSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL list =
     let finalCanvas, originalCost = simulate initCanvas isl
     let simpleBlocks = Map.map (fun _ (b: Block) -> b :?> SimpleBlock) finalCanvas.topBlocks 
     let minMargin = 3
@@ -218,6 +218,69 @@ let optiSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL lis
     isl @ subdivides
 
 
+let boogiePos pos =
+    {x=pos.x+(Rng.rng.Next(11)-5); y= pos.y+(Rng.rng.Next(11)-5)}
+
+let boogieRandomCutPoint (isl: ISL list) =
+    let isl = Array.ofList isl
+    let pointCuts =
+        isl
+        |> List.ofArray
+        |> List.mapi (fun i isl -> (i, isl))
+        |> List.filter (fun (_, isl) -> match isl with | ISL.PointCut _ -> true | _ -> false)
+    let idx = Rng.rng.Next(0, pointCuts.Length)
+    let (origIdx, randomPointCut) = pointCuts.[idx]
+    let newPointCut =
+        match randomPointCut with
+        | ISL.PointCut (block, oldPos) -> ISL.PointCut (block, boogiePos oldPos)
+        | _ -> failwith "boogieCutPoint: not a point cut"
+    isl.[origIdx] <- newPointCut
+    (Array.toList isl, randomPointCut, newPointCut)
+
+let validate canvas isl =
+    match isl with
+    | ISL.PointCut (blockId, pos) ->
+        let block = Map.find blockId canvas.topBlocks
+        pos.x > block.lowerLeft.x && pos.x < block.lowerLeft.x + block.size.width &&
+        pos.y > block.lowerLeft.y && pos.y < block.lowerLeft.y + block.size.height
+    | ISL.LineCut (blockId, H, offset) ->
+        let block = Map.find blockId canvas.topBlocks
+        offset > block.lowerLeft.x && offset < block.lowerLeft.x + block.size.width
+    | ISL.LineCut (blockId, V, offset) ->
+        let block = Map.find blockId canvas.topBlocks
+        offset > block.lowerLeft.y && offset < block.lowerLeft.y + block.size.height
+    | _ -> true
+
+let simulateWithValidation (canvas: Canvas) (instructions: ISL list) =
+    List.fold (fun acc isl ->
+        match acc with
+        | None -> None
+        | Some (canvas, cost) ->
+            if validate canvas isl then
+                let canvas, islCost = simulate_step canvas isl
+                Some (canvas, cost + islCost)
+            else None)
+        (Some (canvas, 0)) instructions
+
+let optimizeCutPoints (target: Image) (initCanvas: Canvas) (isl: ISL list) =
+    let finalCanvas, originalIslCost = simulate initCanvas isl
+    let renderedBlock = renderCanvas finalCanvas
+    let originalSimilarity = imageSimilarity (sliceWholeImage renderedBlock) (sliceWholeImage target)
+    let mutable bestIsl, lowestPenalty = isl, originalIslCost + originalSimilarity
+    for _ = 0 to 10_000 do
+        let newIsl, prevCutPoint, newCutPoint = boogieRandomCutPoint bestIsl
+        match simulateWithValidation initCanvas newIsl with
+        | Some (newCanvas, newIslCost) ->
+            let newRenderedBlock = renderCanvas newCanvas
+            let newSimilarity = imageSimilarity (sliceWholeImage newRenderedBlock) (sliceWholeImage target)
+            let newPenalty = newIslCost + newSimilarity
+            if newPenalty < lowestPenalty then
+                printfn "Optimized %A to %A to reduce penalty from %d to %d" prevCutPoint newCutPoint lowestPenalty newPenalty
+                bestIsl <- newIsl
+                lowestPenalty <- newPenalty
+        | _ -> ()
+    bestIsl
+
 let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL list) list) =
     solutions
     |> List.map (fun (name, solution) ->
@@ -230,13 +293,16 @@ let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
         printfn "Optimizer DISABLED: Solution has non-cut/color instructions"
         originalSolution
     else
-    let optiColors = optimizeColors target initCanvas originalSolution
-    let optiColorTrace = optiColorTraceNaive target initCanvas originalSolution
-    let (optiCost, optiSimilarity, bestOpti, optimized) =
-        [ ("original", originalSolution)
-          ("optiColors", optiColors)
-          ("optiColorTrace", optiColorTrace) ]
-        |> chooseBest target initCanvas
+    let solutions =
+        [("optiColors",     optimizeColors)
+        //  ("optiCutPoints", optimizeCutPoints)
+         ("optiSubdivide",  optimizeSubdivide) 
+         ("optiColorTraceNaive",  optimizeColorTraceNaive) ]
+        |> List.fold (fun solutions (name, optimizer) ->
+                let newSolution = optimizer target initCanvas (List.head solutions |> snd)
+                (name, newSolution) :: solutions
+            ) [ ("original", originalSolution) ]
+    let optiCost, optiSimilarity, bestOpti, optimized = chooseBest target initCanvas solutions
     if bestOpti = "original" then
         printfn "Optimizer could not improve"
     else
