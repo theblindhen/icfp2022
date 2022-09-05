@@ -14,7 +14,8 @@ let swapBlocks (blockMap: Map<int, SimpleBlock>) pos1 pos2 =
 
 let eagerSwapper (targetImage: Image) (canvas: Canvas) =
     assert (canvasGridInfo canvas <> None)
-    let blockMap,_ = positionMap canvas
+    let blockMap = blockMap canvas
+                   |> Map.map (fun _ (b: Block) -> b :?> SimpleBlock)
     let chooseGreedySwap (blockMap: Map<int, SimpleBlock>) posId =
         let curBlock = blockMap[posId]
         let curTarget = sliceImage targetImage curBlock.size curBlock.lowerLeft
@@ -145,34 +146,39 @@ let swapsFromAssignment (posToBlockId: Map<int, string>) (blockToGroup: Map<stri
     |> snd
     |> List.rev
 
-/// Swapper that assumes that all blocks are simple
-let assignSwapperSimple (targetImage: Image) (canvas: Canvas) =
-    assert (canvasGridInfo canvas <> None)
-    let blockMap, positions = positionMap canvas
-    // The group is the color of the simple block
+type SwapperStrategyOutput<'a when 'a:comparison> = (
+        Map<string, 'a> * // blockToGroup
+        Map<int, Map<'a, float>> // posGroupCosts
+    )
+
+/// Takes a block map and returns the necessary groupings and costs for swapper strategy
+type SwapperStrategy<'a when 'a:comparison> = ImageSlice -> Canvas -> Map<int, Block> -> SwapperStrategyOutput<'a>
+
+let simpleGridSwapping (targetImage: ImageSlice) (canvas: Canvas) (blockMap: Map<int, Block>) : SwapperStrategyOutput<int> =
+    let blockToGroup =
+        blockMap
+        |> Map.values
+        |> Seq.map (fun (b: Block) -> (b.id, (b :?> SimpleBlock).color.asInt ()))
+        |> Map.ofSeq
+    let positions = positionsFromBlockMap blockMap
     let colorToBlockIds =
         Map.values canvas.topBlocks
         |> Seq.map (fun b -> (b :?> SimpleBlock).color, b.id)
         |> Seq.groupBy (fun (color, _) -> color)
         |> Seq.map (fun (color, idList) -> color, idList |> Seq.map snd |> List.ofSeq)
         |> Map.ofSeq
-    let groupToBlockIds =
-        colorToBlockIds
-        |> Map.toSeq
-        |> Seq.map (fun (color, ids) -> color.asInt (), ids)
-        |> Map.ofSeq
     let groupToColor =
         colorToBlockIds
         |> Map.keys
         |> Seq.map (fun color -> color.asInt (), color)
         |> Map.ofSeq
-    let groups = Map.keys groupToBlockIds |> List.ofSeq
+    let groups = Map.keys groupToColor |> List.ofSeq
     // For each position, what would it cost to have the median color there
     let medianColorCosts =
         positions
         |> Map.toSeq
         |> Seq.map (fun (posId, (lowerLeft, size)) ->
-            let imageSlice = sliceImage targetImage size lowerLeft
+            let imageSlice = subslice targetImage size lowerLeft
             let medianColor = Util.medianColor imageSlice
             let similarityCost = Util.singleColorSimilarity medianColor imageSlice
             let colorizeCost = islCost canvas ISLOps.ColorBlock size
@@ -192,30 +198,40 @@ let assignSwapperSimple (targetImage: Image) (canvas: Canvas) =
         let swapCostMultiplier = 0.6 //1.0 - 1.0/float(List.length groups)
         blockMap
         |> Map.map (fun posId block ->
-            let target = sliceImage targetImage block.size block.lowerLeft
+            let target = subslice targetImage block.size block.lowerLeft
             groups
             |> List.map (fun group ->
                 let color = groupToColor[group]
                 let thisColorCost = float (Util.singleColorSimilarity color target)
                 let medianColorCost = float medianColorCosts[posId]
                 let swapCost =
-                    if block.color = color then 0.
+                    if (block :?> SimpleBlock).color = color then 0.
                     else swapCostMultiplier * float (islCost canvas ISLOps.SwapBlocks block.size)
                 group, swapCost + System.Math.Min (thisColorCost, medianColorCost))
             |> Map.ofSeq)
-    let posToBlockId = Map.map (fun _ (b: SimpleBlock) -> b.id) blockMap
-    let blockToGroup = Map.map (fun _ (b: Block) -> (b :?> SimpleBlock).color.asInt ()) canvas.topBlocks
+    blockToGroup, posGroupCosts
+
+/// Swapper that assumes that all blocks are simple
+let assignSwapperStrategy<'a when 'a:comparison> (swapperStrategy: SwapperStrategy<'a>) (targetImage: Image) (canvas: Canvas) : (ISL list * (int * int) option) =
+    let blockMap = blockMap canvas
+    let blockToGroup, posGroupCosts = swapperStrategy (sliceWholeImage targetImage) canvas blockMap
+    let groupToBlockIds =
+        blockToGroup
+        |> Map.toSeq
+        |> Seq.map (fun (blockId, group) -> group, blockId)
+        |> List.ofSeq
+        |> List.groupBy (fun (group, _) -> group)
+        |> List.map (fun (group, idList) -> group, idList |> List.map snd)
+        |> Map.ofSeq
+    let posToBlockId = Map.map (fun _ (b: Block) -> b.id) blockMap
     let assignment = computeGroupAssignment groupToBlockIds posGroupCosts
-    // printfn "Assignments:"
-    // assignment |> Map.iter (fun posId color ->
-    //     printfn "\t%d assigned color %s" posId (color.toString()))
-    // assertConformalAssignment groupToBlockIds assignment
     let swaps = swapsFromAssignment posToBlockId blockToGroup assignment
+
     let (postSwapCanvas, _) = simulate canvas swaps
     let postColorize = AI.colorCanvasMedianWhereBeneficial targetImage postSwapCanvas
     printfn "Swapper stats:"
-    printfn "\tPositions: %d" (Map.count positions)
-    printfn "\tGroups: %d" (List.length groups)
+    printfn "\tPositions: %d" (Map.count blockMap)
+    printfn "\tGroups: %d" (Map.count groupToBlockIds)
     printfn "\tSwap instructions: %d" (List.length swaps)
     printfn "\tColor instructions: %d" (List.length postColorize)
     let reassignments =
