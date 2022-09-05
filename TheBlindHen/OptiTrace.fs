@@ -294,15 +294,13 @@ let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL li
     |> snd
 
 let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
-    if not(onlyCutsAndColors originalSolution) then
-        printfn "Optimizer DISABLED: Solution has non-cut/color instructions"
-        originalSolution
-    else
-    let solutions =
+    let optimizers =
         [("optiColors",     optimizeColors)
          ("optiCutPoints", optimizeCutPoints)
-         ("optiSubdivide",  optimizeSubdivide) 
-         ("optiColorTraceNaive",  optimizeColorTraceNaive) ]
+         ("optiSubdivide",  optimizeSubdivide)] @
+         (if onlyCutsAndColors originalSolution then [("optiColorTraceNaive",  optimizeColorTraceNaive)] else [])
+    let solutions =
+        optimizers
         |> List.fold (fun solutions (name, optimizer) ->
                 let newSolution = optimizer target initCanvas (List.head solutions |> snd)
                 (name, newSolution) :: solutions
