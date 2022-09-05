@@ -283,10 +283,11 @@ let optimizeCutPoints (target: Image) (initCanvas: Canvas) (isl: ISL list) =
 
 let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL list) list) =
     solutions
-    |> List.map (fun (name, solution) ->
+    |> List.mapi (fun i (name, solution) ->
         let (cost, similarity) = scoreSolution target initCanvas solution
-        (cost, similarity, name, solution))
-    |> List.minBy (fun (cost, similarity, _,  _) -> cost+similarity)
+        (i, (cost, similarity, name, solution)))
+    |> List.minBy (fun (i, (cost, similarity, _,  _)) -> i+cost+similarity) // Add index to get earliest opt that worked
+    |> snd
 
 let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
     if not(onlyCutsAndColors originalSolution) then
@@ -295,13 +296,14 @@ let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
     else
     let solutions =
         [("optiColors",     optimizeColors)
-        //  ("optiCutPoints", optimizeCutPoints)
+         ("optiCutPoints", optimizeCutPoints)
          ("optiSubdivide",  optimizeSubdivide) 
          ("optiColorTraceNaive",  optimizeColorTraceNaive) ]
         |> List.fold (fun solutions (name, optimizer) ->
                 let newSolution = optimizer target initCanvas (List.head solutions |> snd)
                 (name, newSolution) :: solutions
             ) [ ("original", originalSolution) ]
+        |> List.rev
     let optiCost, optiSimilarity, bestOpti, optimized = chooseBest target initCanvas solutions
     if bestOpti = "original" then
         printfn "Optimizer could not improve"
