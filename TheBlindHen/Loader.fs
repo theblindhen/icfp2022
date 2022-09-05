@@ -77,7 +77,7 @@ let loadSimpleCanvasJson (jsonFilePath: string) =
               b = b.color.[2]
               a = b.color.[3] })
         )
-    { maxTopId = blocks.Length
+    { maxTopId = blocks.Length - 1
       size = { width = jsonCanvas.width
                height = jsonCanvas.height }
       topBlocks =
