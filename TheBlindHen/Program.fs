@@ -179,7 +179,8 @@ let main args =
             | Some MergeMeta -> failwith "Can't use a merge strategy after merging everything"
             | Some mergeAI ->
                 let innerSolver, innerSolverName = getSolver mergeAI
-                (Merger.mergeAllMetaSolver innerSolver, $"merge-all({innerSolverName})")
+                (Merger.mergeAllMetaSolver innerSolver (not(results.Contains NoOptiTrace)),
+                 $"merge-all({innerSolverName})")
     let (solver, solverName) =
         match results.GetResult (AI, None) with
         | None -> ((fun _ _ -> ([],None)), "no AI")

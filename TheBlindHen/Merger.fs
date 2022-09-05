@@ -72,12 +72,17 @@ let mergeAll (canvas: Canvas) : (ISL list * int) =
     let mergedCols, maxTopId = mergeBlocks maxTopId (List.map string rowIds)
     (mergedRows @ mergedCols, maxTopId)
 
-let mergeAllMetaSolver (solver: Solver) (target: Image) (canvas: Canvas) =
+let mergeAllMetaSolver (solver: Solver) (optiTrace: bool) (target: Image) (canvas: Canvas) =
     let mergeInstructions,lastBlockId = mergeAll canvas
     let colorInstr = ISL.ColorBlock (string lastBlockId, { r=255; g=255; b=255; a=255 })
     let mergeAndColor = mergeInstructions @ [colorInstr]
     // printfn "Merge instructions:\n%s" (deparse mergeInstructions)
     let (mergedCanvas,_) = simulate canvas mergeAndColor
-    // printfn "Ran merging!"
+    printfn "Ran merging!"
     let solverInstructions, _ = solver target mergedCanvas
-    (mergeAndColor @ solverInstructions, None)
+    if optiTrace then
+        printfn "Running Optimizer on post-merge instructions"
+        let optiSolverInstructions = OptiTrace.optimize target mergedCanvas solverInstructions
+        (mergeAndColor @ optiSolverInstructions, None)
+    else
+        (mergeAndColor @ solverInstructions, None)
