@@ -267,8 +267,10 @@ type MCTSState = {
     stopped: bool
 }
 
+type Cut = Left | Mid | Right | Top | Bottom | TopLeft | TopRight | BottomLeft | BottomRight
+
 type MCTSAction = 
-    | MidpointCut of Block
+    | PointCut of Block * Cut
     | PaintMedian of Block
     | Stop
 
@@ -289,12 +291,26 @@ let actions state =
         block.size.width > 1 &&
         block.size.height > 1 &&
         block.size.width * block.size.height > breakEvenNumberOfPixels)
-    |> pickRandomN 10
+    |> pickRandomN 5
     |> Seq.map (fun block -> 
-        MidpointCut block :: (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
+        PointCut(block, Top)::PointCut(block, Mid)::PointCut(block, Bottom)::PointCut(block, Left)::PointCut(block, Right)::
+        PointCut(block, TopLeft)::PointCut(block, TopRight)::PointCut(block, BottomLeft)::PointCut(block, BottomRight)::
+        (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]))
     |> Seq.concat
     |> Seq.append (Seq.singleton Stop)
     |> Array.ofSeq
+
+let cutpoint cut (block: Block) = 
+    match cut with 
+    | Left -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 2 }
+    | Mid -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 }
+    | Right -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 2 }
+    | Top -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height * 3 / 4 }
+    | Bottom -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 4 }
+    | TopLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height *3 / 4 }
+    | TopRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height * 3 / 4 }
+    | BottomLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 4 }
+    | BottomRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 4 }
 
 let step targetImage state action =
     match action with
@@ -311,8 +327,8 @@ let step targetImage state action =
             blocksPainted = state.blocksPainted.Add(block.id)
             stopped = false
         }
-    | MidpointCut block ->
-        let isl = ISL.PointCut(block.id, { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 })
+    | PointCut (block, cut) ->
+        let isl = ISL.PointCut(block.id, cutpoint cut block)
         let canvas, cost = simulate_step state.canvas isl
         {
             instructionsRev = isl :: state.instructionsRev
@@ -325,14 +341,8 @@ let step targetImage state action =
     | Stop ->
         { state with stopped = true }
          
-let mutable i = 0
-
 // Take random actions until we reach a state from which no actions are available
 let simulate targetImage state =
-    if i % 100 = 0 then 
-        printfn "Simulation %d" i
-        printfn "%s" (Instructions.deparse (List.rev state.instructionsRev))
-    i <- i + 1
     let nextInstructions =
         if state.stopped then [] else
         state.blocksControlled
@@ -352,8 +362,10 @@ let simulate targetImage state =
 
 /// Returns instructions, cost, and similarity (scaled)
 let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) =
+    let stopWatch = System.Diagnostics.Stopwatch.StartNew()
     /// Returns reversed(!) instructions, cost, and distance (unscaled!)
     let rec solveBlock canvas blockId =
+        let localStopWatch = System.Diagnostics.Stopwatch.StartNew()
         let state = {
             instructionsRev = []
             instructionCost = 0
@@ -370,7 +382,12 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
             let distance = subImageDistance (sliceWholeImage renderedBlock) targetSlice
             ([], 0, distance)
         | Some (action, state) ->
-            printfn "Took action: %A" action
+            let description =
+                match action with
+                | Stop -> "Stop"
+                | PaintMedian _ -> sprintf "Painting median"
+                | PointCut (_, cut) -> sprintf "%A cut" cut
+            printfn "%20s (+%10dms, %10dms total): %s" blockId localStopWatch.ElapsedMilliseconds stopWatch.ElapsedMilliseconds description
             if state.stopped then 
                 let block = Map.find blockId canvas.topBlocks 
                 let targetSlice = subslice target block.size block.lowerLeft
@@ -378,7 +395,6 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
                 let distance = subImageDistance (sliceWholeImage renderedBlock) targetSlice 
                 (state.instructionsRev, state.instructionCost, distance) 
             else
-            printfn "Recursing into %d blocks" state.blocksControlled.Count
             // Recurse into the controlled blocks of the new state
             Seq.fold (fun (instructionsRev, cost, distance) blockId ->
                 let (instructionsRev', cost', distance') = solveBlock state.canvas blockId
