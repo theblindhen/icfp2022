@@ -149,8 +149,9 @@ type ColorTarget = Parent of Color | Sub1 of Color | Sub2 of Color
 let optimizeSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL list =
     let finalCanvas, originalCost = simulate initCanvas isl
     let simpleBlocks = Map.map (fun _ (b: Block) -> b :?> SimpleBlock) finalCanvas.topBlocks 
-    let minMargin = 3
+    let minMargin = 5
     let mostEfficientColoring (b: SimpleBlock) (color1: Color, size1: Size) (color2: Color, size2: Size) =
+        // TODO: Consider not coloring and eating the diff in median
         [ yield (if color1 = b.color then [] else [ Parent color1 ]) @ [ Sub2 color2 ]
           yield (if color2 = b.color then [] else [ Parent color2 ]) @ [ Sub1 color1 ] ]
         |> List.map (fun targets ->
@@ -187,6 +188,10 @@ let optimizeSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL
                             if currentSimilarity < costOfCut + similarityLeft + similarityRight + coloringCost then
                                 None
                             else
+                                printfn "Vertical cut of %s = %A at %d" b.id b.size x
+                                printfn "Current color: %s" (b.color.toString())
+                                printfn "Left: %s, %A" (medianLeft.toString()) sizeLeft
+                                printfn "Right: %s, %A" (medianRight.toString()) sizeRight
                                 Some (V, x, bestColoring, costOfCut + similarityLeft + similarityRight + coloringCost))
                     |> List.choose id
                 if ls = [] then []
@@ -196,7 +201,7 @@ let optimizeSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL
             let contenders = bestVertical
             if contenders = [] then None
             else
-            let (dir, offset, coloring, _) = contenders |> List.minBy (fun (_, _, _, cost) -> cost)
+            let (dir, offset, coloring, cost) = contenders |> List.minBy (fun (_, _, _, cost) -> cost)
             let preColor =
                 match List.tryFind (function Parent _ -> true | _ -> false) coloring with
                 | Some (Parent c) -> [ ISL.ColorBlock (b.id, c) ]
@@ -209,6 +214,7 @@ let optimizeSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL
                              | Sub2 c -> Some (ISL.ColorBlock (b.id + ".1", c))
                              | _ -> None)
                 |> List.choose id
+            printfn "\n\n\t\t\t\tDECIDED TO SUBDIVIDE %s: %A at %d.\nColoring %A\n Improvement should be %d\n\n\n\n" b.id dir offset coloring (currentSimilarity - cost)
             Some (preColor @ [cut] @ postColor)
     let subdivides = [
         for b in Map.values simpleBlocks do
@@ -297,7 +303,7 @@ let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
     let optimizers =
         [("optiColors",     optimizeColors)
          ("optiCutPoints", optimizeCutPoints)
-         ("optiSubdivide",  optimizeSubdivide)] @
+         ] @
          (if onlyCutsAndColors originalSolution then [("optiColorTraceNaive",  optimizeColorTraceNaive)] else [])
     let solutions =
         optimizers
