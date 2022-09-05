@@ -276,7 +276,7 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
                 ([], 0, currentDistance)
             ] @ (
                 // Option 2: paint the whole block with the "median" color
-                let medianColor = approxAverageColor target
+                let medianColor = approxMostFrequentColor target
                 if medianColor = candidateColor then [] else
                 let medianDistance = approxSingleColorDistance medianColor target
                 let isl2_color = ISL.ColorBlock(blockId, medianColor)
