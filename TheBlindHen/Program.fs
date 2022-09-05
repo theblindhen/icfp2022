@@ -33,6 +33,41 @@ let writeSolutionIfBetter taskPath islSolution score =
     | Some(best) ->
         printfn "%s: A better solution already exists (best score: %d, current score: %d). NOT writing solution" taskPath best score
 
+let prepareTask taskPath =
+    let targetImage = loadPNG taskPath
+    let initCanvas =
+        let taskFileInfo = System.IO.FileInfo (taskPath)
+        let taskInitPath = taskFileInfo.DirectoryName + "/" + taskFileInfo.Name.Split('.')[0] + ".initial.json"
+        if IO.File.Exists taskInitPath then
+            loadSimpleCanvasJson taskInitPath
+        else 
+            // printfn "Canvas was blank"
+            blankCanvas {width = 400; height = 400}
+    (targetImage, initCanvas)
+
+let loadBestSolution taskPath =
+    let solutionDir = getSolutionDir taskPath
+    let dirinfo = IO.Directory.CreateDirectory solutionDir
+    match bestCurrentSolution dirinfo with
+    | None -> failwith "No solution found"
+    | Some(best) ->
+        let solutionFile = sprintf "%s%d.isl" solutionDir best
+        parseSolutionFile solutionFile
+
+let printSolutionStats () =
+    let scores = [ for i in [ 1..40] ->
+                    let taskPath = sprintf "tasks/%d.png" i
+                    let targetImage, initCanvas = prepareTask taskPath
+                    let solution = loadBestSolution taskPath
+                    (i, scoreSolution targetImage initCanvas solution) ]
+    for (task, (cost, similarity)) in scores do
+        printfn "Task %d penalty: %d\tCost: %d\tSimilarity: %d" task (cost+similarity) cost similarity 
+    let totalCost = scores |> List.map (fun (_, (cost, _)) -> cost) |> List.sum
+    let totalSimilarity = scores |> List.map (fun (_, (_, similarity)) -> similarity) |> List.sum
+    let totalPenalty = totalCost + totalSimilarity
+    printfn "Total: %d\tCost: %d\tSimilarity: %d" totalPenalty totalCost totalSimilarity
+        
+
 type Arguments =
     | GUI
     | [<AltCommandLine("-v")>] Verbose
@@ -42,6 +77,7 @@ type Arguments =
     | Repetitions of int
     | MergeAI of AISelector option
     | RandomSeed of int
+    | Stats
     | [<MainCommand; ExactlyOnce; Last>] TaskPath of task:string
 
     interface IArgParserTemplate with
@@ -56,18 +92,10 @@ type Arguments =
             | Verbose _ -> "Print more information"
             | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
             | RandomSeed _ -> "The random seed to use"
+            | Stats -> "Don't do anything, just print some stats on the best solution"
 
 and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeAll | MergeMeta
 and SplitPointSelector = Midpoint | HighestDistance
-
-let loadBestSolution taskPath =
-    let solutionDir = getSolutionDir taskPath
-    let dirinfo = IO.Directory.CreateDirectory solutionDir
-    match bestCurrentSolution dirinfo with
-    | None -> failwith "No solution found"
-    | Some(best) ->
-        let solutionFile = sprintf "%s%d.isl" solutionDir best
-        parseSolutionFile solutionFile
 
 let solverOneLiner : Solver = fun targetImage canvas ->
     if Map.count canvas.topBlocks > 1 then
@@ -127,6 +155,10 @@ let runAndScoreSolver taskPath (targetImage: Image) (initCanvas: Canvas) (solver
 let main args =
     let parser = ArgumentParser.Create<Arguments>(programName = "TheBlindHen.exe")
     let results = parser.Parse args
+    if results.Contains Stats then
+        printSolutionStats ()
+        0
+    else
     let randomSeed = 
         match results.TryGetResult RandomSeed with
         | Some s -> s
@@ -134,15 +166,7 @@ let main args =
     printfn "Random seed: %d" randomSeed
     Rng.rng <- System.Random(randomSeed) // TODO: add a command-line option for overriding this
     let taskPath = results.GetResult (TaskPath)
-    let targetImage = loadPNG taskPath
-    let initCanvas =
-        let taskFileInfo = System.IO.FileInfo (taskPath)
-        let taskInitPath = taskFileInfo.DirectoryName + "/" + taskFileInfo.Name.Split('.')[0] + ".initial.json"
-        if IO.File.Exists taskInitPath then
-            loadSimpleCanvasJson taskInitPath
-        else 
-            printfn "Canvas was blank"
-            blankCanvas {width = 400; height = 400}
+    let targetImage, initCanvas = prepareTask taskPath
     let rec getSolver = function
         | OneLiner -> (solverOneLiner, "one-line")
         | QuadTree ->

@@ -206,7 +206,7 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
         let block1 = Map.find blockId1 canvas.topBlocks
         let block2 = Map.find blockId2 canvas.topBlocks
         // Assert that block1 and block2 are adjacent
-        let lowerLeft, size =
+        let lowerLeft, mergeSize =
             if block1.lowerLeft.x = block2.lowerLeft.x then
                 // Blocks are on the same vertical line
                 assert (block1.lowerLeft.y = block2.lowerLeft.y + block2.size.height || block2.lowerLeft.y = block1.lowerLeft.y + block1.size.height)
@@ -225,9 +225,11 @@ let simulate_step (canvas: Canvas) (isl: ISL) : (Canvas * int) =
                    height = block1.size.height })
             else failwith "Simulator: merging non-adjacent blocks"
         // Create a complex block for the purpose of rendering it
-        let complexBlock = ComplexBlock("temp", size, lowerLeft, [|block1; block2|])
-        let imageBlock = ImageBlock(string (maxTopId + 1), size, lowerLeft, sliceWholeImage(renderBlock complexBlock))
-        let cost = islCost canvas ISLOps.MergeBlocks size
+        let complexBlock = ComplexBlock("temp", mergeSize, lowerLeft, [|block1; block2|])
+        let imageBlock = ImageBlock(string (maxTopId + 1), mergeSize, lowerLeft, sliceWholeImage(renderBlock complexBlock))
+        let cost =
+            let costSize = [ block1.size; block2.size ] |> List.maxBy (fun (s: Size) -> s.width * s.height)
+            islCost canvas ISLOps.MergeBlocks costSize
         { canvas with
             maxTopId = maxTopId + 1;
             topBlocks = canvas.topBlocks

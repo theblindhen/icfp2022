@@ -176,8 +176,9 @@ let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (
             if targetArea <= breakEvenNumberOfPixels || targetSlice.size.width <= 1 || targetSlice.size.height <= 1 then
                 []
             else
+            // For performance, only proceed with the following recursion half of the time
+            if Rng.rng.Next(2) = 0 then [] else
             // Option 3: split the block into 4 and recurse
-            // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
             let splitX = randomSemiNormalBetween 1 targetSlice.size.width
             let splitY = randomSemiNormalBetween 1 targetSlice.size.height
             assert(splitX >= 1 && splitX < targetSlice.size.width)
