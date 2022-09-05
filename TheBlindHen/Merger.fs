@@ -78,7 +78,7 @@ let mergeAllMetaSolver (solver: Solver) (optiTrace: bool) (target: Image) (canva
     let mergeAndColor = mergeInstructions @ [colorInstr]
     // printfn "Merge instructions:\n%s" (deparse mergeInstructions)
     let (mergedCanvas,_) = simulate canvas mergeAndColor
-    printfn "Ran merging!"
+    // printfn "Ran merging!"
     let solverInstructions, _ = solver target mergedCanvas
     if optiTrace then
         printfn "Running Optimizer on post-merge instructions"
