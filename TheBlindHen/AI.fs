@@ -204,7 +204,7 @@ let randomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canv
                 |> Array.map (fun (slice, sliceId) ->
                     // Calculate the median for each slice.
                     // Pass that into the recursion so it's not recomputed.
-                    let sliceMedian = approxAverageColor slice
+                    let sliceMedian = approxMostFrequentColor slice
                     let sliceMedianDistance = approxSingleColorDistance sliceMedian slice
                     let (isl, cost, distance) = solve sliceId slice sliceMedian sliceMedianDistance candidateColor
                     let benefitFromInheritingColor =
@@ -253,7 +253,7 @@ let randomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canv
                 + (noopSlices |> Array.map (fun (_, _, distance) -> distance) |> Array.sum)
             [(instructions, cost, distance)]
         List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let targetMedian = approxAverageColor target
+    let targetMedian = approxMostFrequentColor target
     let targetMedianDistance = approxSingleColorDistance targetMedian target
     let isl, cost, distance = solve blockId target targetMedian targetMedianDistance currColor
     (isl, cost, distanceToSimilarity distance)
@@ -376,7 +376,7 @@ let step targetImage state action =
     match action with
     | PaintMedian block ->
         let targetSlice = subslice targetImage block.size block.lowerLeft
-        let medianColor = approxMedianColor targetSlice
+        let medianColor = approxMostFrequentColor targetSlice
         let isl = ISL.ColorBlock(block.id, medianColor)
         let canvas, cost = simulate_step state.canvas isl
         {
