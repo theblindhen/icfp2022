@@ -67,12 +67,29 @@ let printSolutionStats () =
     let totalPenalty = totalCost + totalSimilarity
     printfn "Total: %d\tCost: %d\tSimilarity: %d" totalPenalty totalCost totalSimilarity
         
+let optimizeAll taskPath targetImage initCanvas =
+    let solutionDir = getSolutionDir taskPath
+    let dirinfo = IO.Directory.CreateDirectory solutionDir
+    let allSolutions =
+        dirinfo.EnumerateFiles ()
+        |> Seq.filter (fun f -> f.Extension = ".isl")
+        |> Seq.map (fun f -> f.Name.Split('.')[0] |> int)
+        |> Seq.map (fun s -> parseSolutionFile $"{solutionDir}{s}.isl")
+    printfn "Optimizing %d solutions" (Seq.length allSolutions)
+    allSolutions
+    |> Seq.iter (fun solution ->
+        let optimized = OptiTrace.optimize targetImage initCanvas solution
+        let cost, similarity = scoreSolution targetImage initCanvas optimized
+        writeSolutionIfBetter taskPath optimized (cost+similarity))
+    ()
+
 
 type Arguments =
     | GUI
     | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
     | NoOptiTrace
+    | OptimizeAll
     | SplitPoint of SplitPointSelector option
     | Repetitions of int
     | MergeAI of AISelector option
@@ -86,6 +103,7 @@ type Arguments =
             | GUI -> "Show the GUI"
             | AI _ -> "The AI to use. If no AI set, load the best solution on disk."
             | NoOptiTrace _ -> "Disable the opti-tracer on the generated solution."
+            | OptimizeAll _ -> "Run optimizer on all existing solutions for that task"
             | SplitPoint _ -> "The split point to use"
             | Repetitions _ -> "The number of repetitions"
             | TaskPath _ -> "The task png path to use"
@@ -167,6 +185,10 @@ let main args =
     Rng.rng <- System.Random(randomSeed) // TODO: add a command-line option for overriding this
     let taskPath = results.GetResult (TaskPath)
     let targetImage, initCanvas = prepareTask taskPath
+    if results.Contains OptimizeAll then
+        optimizeAll taskPath targetImage initCanvas
+        0
+    else
     let rec getSolver = function
         | OneLiner -> (solverOneLiner, "one-line")
         | QuadTree ->
