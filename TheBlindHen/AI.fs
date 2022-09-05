@@ -360,12 +360,12 @@ let simulate targetImage state =
     let similarity = imageSimilarity (sliceWholeImage terminalImg) targetImage
     similarity + nextInstructionsCost + state.instructionCost
 
-let stopWatch = System.Diagnostics.Stopwatch.StartNew()
-
 /// Returns instructions, cost, and similarity (scaled)
 let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) =
+    let stopWatch = System.Diagnostics.Stopwatch.StartNew()
     /// Returns reversed(!) instructions, cost, and distance (unscaled!)
     let rec solveBlock canvas blockId =
+        let localStopWatch = System.Diagnostics.Stopwatch.StartNew()
         let state = {
             instructionsRev = []
             instructionCost = 0
@@ -387,7 +387,7 @@ let mctsSolver (repetitions: int) (target: ImageSlice) (originalCanvas: Canvas) 
                 | Stop -> "Stop"
                 | PaintMedian _ -> sprintf "Painting median"
                 | PointCut (_, cut) -> sprintf "%A cut" cut
-            printfn "%20s (%10dms): %s" blockId stopWatch.ElapsedMilliseconds description
+            printfn "%20s (+%10dms, %10dms total): %s" blockId localStopWatch.ElapsedMilliseconds stopWatch.ElapsedMilliseconds description
             if state.stopped then 
                 let block = Map.find blockId canvas.topBlocks 
                 let targetSlice = subslice target block.size block.lowerLeft
