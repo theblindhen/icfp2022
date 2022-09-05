@@ -4,6 +4,15 @@ open Model
 open Util
 open Instructions
 
+let onlyCutsAndColors (instructions: ISL list) =
+    None = (instructions
+            |> List.tryFind (fun instruction ->
+                match instruction with
+                | ISL.LineCut _ -> false
+                | ISL.PointCut _ -> false
+                | ISL.ColorBlock _ -> false
+                | _ -> true))
+
 /// Return all blocks that are inside the given block id
 /// In the absence of swap and merge, this is equivalent to having an id that
 /// starts with the given id.
@@ -142,6 +151,10 @@ let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL li
     |> List.minBy (fun (cost, similarity, _,  _) -> cost+similarity)
 
 let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
+    if not(onlyCutsAndColors originalSolution) then
+        printfn "Optimizer DISABLED: Solution has non-cut/color instructions"
+        originalSolution
+    else
     let optiColors = optimizeColors target initCanvas originalSolution
     let optiColorTrace = optiColorTraceNaive target initCanvas originalSolution
     let (optiCost, optiSimilarity, bestOpti, optimized) =

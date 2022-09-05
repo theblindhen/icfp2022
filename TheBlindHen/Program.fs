@@ -37,7 +37,7 @@ type Arguments =
     | GUI
     | [<AltCommandLine("-v")>] Verbose
     | AI of AISelector option
-    | OptiTrace
+    | NoOptiTrace
     | SplitPoint of SplitPointSelector option
     | Repetitions of int
     | MergeAI of AISelector option
@@ -48,8 +48,8 @@ type Arguments =
         member s.Usage =
             match s with
             | GUI -> "Show the GUI"
-            | AI _ -> "The AI to use"
-            | OptiTrace _ -> "Apply opti-tracer to the generated solution. If no AI set, apply to the best solution on disk."
+            | AI _ -> "The AI to use. If no AI set, load the best solution on disk."
+            | NoOptiTrace _ -> "Disable the opti-tracer on the generated solution."
             | SplitPoint _ -> "The split point to use"
             | Repetitions _ -> "The number of repetitions"
             | TaskPath _ -> "The task png path to use"
@@ -181,8 +181,13 @@ let main args =
         else
             printfn "Task %s: Running %s solver" taskPath solverName
             runAndScoreSolver taskPath targetImage initCanvas solver
+    if results.Contains Verbose then
+        printfn "Solution from the solver, before optimization:\n%s" (deparse solution)
     // Optionally optimize the solution
-    if results.Contains OptiTrace then
+    if results.Contains NoOptiTrace then
+        printfn "OptiTrace DISABLED!"
+    else
+        printfn "Optimizing..."
         solution <- OptiTrace.optimize targetImage initCanvas solution
     // Run the simulator to get the final score
     let (solutionScore, imageSimilarity) = scoreSolution targetImage initCanvas solution
@@ -190,7 +195,7 @@ let main args =
     writeSolutionIfBetter taskPath solution (solutionScore + imageSimilarity)
     // For the user: verbose output and/or GUI
     if results.Contains Verbose then
-        printfn "Instructions generated:\n%s" (deparse solution)
+        printfn "Final solution instructions:\n%s" (deparse solution)
     if results.Contains GUI then
         showGui initCanvas targetImage solution |> ignore
     0
