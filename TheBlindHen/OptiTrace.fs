@@ -223,6 +223,39 @@ let optimizeSubdivide (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL
             | Some sub -> yield! sub ]
     isl @ subdivides
 
+let optimizeSubdivideByRandomSolver (target: Image) (initCanvas: Canvas) (isl: ISL list) : ISL list =
+    let postCanvas, _ = simulate initCanvas isl
+    let simpleBlocks = Map.map (fun _ (b: Block) -> b :?> SimpleBlock) postCanvas.topBlocks 
+    let N = 1_000
+    let rerunRandom solver img canvas = // C&P because ImageSlice != Image
+        let mutable bestSolution, bestCost, bestSim  = solver img canvas
+        for _ in 1..N-1 do
+            let solution, cost, sim = solver img canvas
+            if cost + sim < bestCost + bestSim then
+                bestSolution <- solution
+                bestCost <- cost
+                bestSim <- sim
+        bestSolution, bestCost, bestSim
+    let trySubdivide (b: SimpleBlock) =
+        let currentSimilarity = singleColorSimilarity b.color (sliceImage target b.size b.lowerLeft)
+        let costOfCut = islCost initCanvas ISLOps.LineCut b.size
+        if currentSimilarity < costOfCut then None
+        else
+            let solver = AI.fastRandomSolver b.id {r=255;g=255;b=255;a=255}
+            let subdivision, subdivCost, subdivSimilarity = rerunRandom solver (sliceImage target b.size b.lowerLeft) postCanvas
+            if subdivision = [] || subdivSimilarity + subdivCost >= currentSimilarity then
+                None
+            else
+                // printfn "Random solver found a better subdivision for %s: %A" b.id subdivision
+                Some subdivision
+    let subdivides = [
+        for b in Map.values simpleBlocks do
+            match trySubdivide b with
+            | None -> ()
+            | Some sub -> yield! sub ]
+    isl @ subdivides
+    
+
 
 let boogiePos pos =
     {x=pos.x+(Rng.rng.Next(11)-5); y= pos.y+(Rng.rng.Next(11)-5)}
@@ -302,6 +335,7 @@ let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL li
 let optimize (target: Image) (initCanvas: Canvas) (originalSolution: ISL list) =
     let optimizers =
         [("optiColors",     optimizeColors)
+         ("optiSubdivideRandom", optimizeSubdivideByRandomSolver)
          ("optiCutPoints", optimizeCutPoints)
          ] @
          (if onlyCutsAndColors originalSolution then [("optiColorTraceNaive",  optimizeColorTraceNaive)] else [])
