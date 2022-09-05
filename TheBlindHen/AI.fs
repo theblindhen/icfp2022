@@ -78,7 +78,8 @@ type SplitPointSelector = ImageSlice -> int option * int option
 
 /// Returns instructions, cost, and similarity (scaled)
 let quadtreeSolver (splitpointSelector: SplitPointSelector) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
-    let topBlock = canvas.topBlocks |> Map.find "0"
+    assert (Map.count canvas.topBlocks = 1) // quadTreeSolver does not yet support non-blank initial canvas
+    let topBlock = Map.values canvas.topBlocks |> Seq.head
     let canvasArea = float (topBlock.size.width * topBlock.size.height)
     /// Returns instructions, cost, and distance (not scaled)
     let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int * float =
@@ -140,7 +141,7 @@ let quadtreeSolver (splitpointSelector: SplitPointSelector) (target: ImageSlice)
                     distance3_0 + distance3_1 + distance3_2 + distance3_3
                 )]
         List.minBy (fun (_, cost, distance) -> float cost + distanceScalingFactor * distance) candidates
-    let isl, cost, distance = solve "0" target {r = 255; g = 255; b = 255; a = 255}
+    let isl, cost, distance = solve topBlock.id target {r = 255; g = 255; b = 255; a = 255}
     (isl, cost, int (System.Math.Round (distanceScalingFactor * distance)))
 
 let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
