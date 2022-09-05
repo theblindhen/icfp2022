@@ -138,7 +138,7 @@ let optimizeColors (target: Image) (initCanvas: Canvas) (isl: ISL list) =
                 |> Seq.concat
                 |> medianColorSeq
             if medianColor <> oldColor then
-                printfn "Color %s changed from %s to %s" blockId (oldColor.toString()) (medianColor.toString())
+                // printfn "Color %s changed from %s to %s" blockId (oldColor.toString()) (medianColor.toString())
                 isl.[i] <- ISL.ColorBlock (blockId, medianColor)
         | _ -> ()
     Array.toList isl
