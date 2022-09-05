@@ -268,8 +268,8 @@ type MCTSState = {
     stopped: bool
 }
 
-type PCut = Left | Mid | Right | Top | Bottom | TopLeft | TopRight | BottomLeft | BottomRight | Contrast
-type LCut = LeftVCut | RightVCut | TopHCut | BottomHCut | MidVCut | MidHCut | HContrast | VContrast
+type PCut = RandomPoint of float * float | Contrast
+type LCut = RandomVLine of float | RandomHLine of float | HContrast | VContrast
 
 type MCTSAction = 
     | PointCut of Block * PCut
@@ -287,6 +287,12 @@ let pickRandomN (n: int) (seq: seq<'a>) =
     |> Seq.take n
     |> Seq.map snd
 
+let randomSemiNormal () =
+    let x1 = Rng.rng.NextDouble()
+    let x2 = Rng.rng.NextDouble()
+    let x3 = Rng.rng.NextDouble()
+    (x1 + x2 + x3) / 3.0
+
 let actions colors state =
     if state.stopped then [||] else
     state.blocksControlled
@@ -297,11 +303,10 @@ let actions colors state =
         block.size.width * block.size.height > breakEvenNumberOfPixels)
     |> pickRandomN 5
     |> Seq.map (fun block -> 
-        PointCut(block, Top)::PointCut(block, Mid)::PointCut(block, Bottom)::PointCut(block, Left)::PointCut(block, Right)::
-        PointCut(block, TopLeft)::PointCut(block, TopRight)::PointCut(block, BottomLeft)::PointCut(block, BottomRight)::
-        PointCut(block, Contrast)::
-        LineCut(block, LeftVCut)::LineCut(block, RightVCut)::LineCut(block, TopHCut)::LineCut(block, BottomHCut)::
-        LineCut(block, MidVCut)::LineCut(block, MidHCut)::
+        PointCut(block, Contrast)::LineCut(block, HContrast)::LineCut(block, VContrast)::
+        [ for _ in 1..5 do PointCut(block, RandomPoint(randomSemiNormal (), randomSemiNormal ())) ] @
+        [ for _ in 1..3 do LineCut(block, RandomVLine(randomSemiNormal ())) ] @
+        [ for _ in 1..3 do LineCut(block, RandomHLine(randomSemiNormal ())) ] @
         (if state.blocksPainted.Contains block.id then [] else [PaintMedian block]) @
         List.map (fun color -> PaintColor(block, color)) colors)
     |> Seq.concat
@@ -310,15 +315,8 @@ let actions colors state =
 
 let cutpoint cut (block: Block) targetSlice =
     match cut with 
-    | Left -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 2 }
-    | Mid -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 2 }
-    | Right -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 2 }
-    | Top -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height * 3 / 4 }
-    | Bottom -> { x = block.lowerLeft.x + block.size.width / 2; y = block.lowerLeft.y + block.size.height / 4 }
-    | TopLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height *3 / 4 }
-    | TopRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height * 3 / 4 }
-    | BottomLeft -> { x = block.lowerLeft.x + block.size.width / 4; y = block.lowerLeft.y + block.size.height / 4 }
-    | BottomRight -> { x = block.lowerLeft.x + block.size.width * 3 / 4; y = block.lowerLeft.y + block.size.height / 4 }
+    | RandomPoint(xScale, yScale) ->
+        { x = block.lowerLeft.x + int (float block.size.width * xScale) ; y = block.lowerLeft.y + int (float block.size.height * yScale) }
     | Contrast ->
         match highestDistanceCut targetSlice with
         | Some x, Some y -> { x = block.lowerLeft.x + x; y = block.lowerLeft.y + y }
@@ -326,12 +324,8 @@ let cutpoint cut (block: Block) targetSlice =
 
 let offset cut (block: Block) targetSlice: Direction * int =
     match cut with
-    | LeftVCut -> V, block.lowerLeft.x + block.size.width / 4
-    | RightVCut -> V, block.lowerLeft.x + block.size.width * 3 / 4
-    | MidVCut -> V, block.lowerLeft.x + block.size.width / 2
-    | TopHCut -> H, block.lowerLeft.y + block.size.height * 3 / 4
-    | BottomHCut -> H, block.lowerLeft.y + block.size.height / 4
-    | MidHCut -> H, block.lowerLeft.y + block.size.height / 2
+    | RandomHLine yScale -> H, block.lowerLeft.y + int (float block.size.height * yScale)
+    | RandomVLine xScale -> V, block.lowerLeft.x + int (float block.size.width * xScale)
     | HContrast ->
         let offset =
             match highestDistanceHorizontalCut targetSlice with
