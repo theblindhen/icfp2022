@@ -153,14 +153,16 @@ let boogieRandomCutPoint (isl: ISL list) =
         |> List.ofArray
         |> List.mapi (fun i isl -> (i, isl))
         |> List.filter (fun (_, isl) -> match isl with | ISL.PointCut _ -> true | _ -> false)
-    let idx = Rng.rng.Next(0, pointCuts.Length)
-    let (origIdx, randomPointCut) = pointCuts.[idx]
-    let newPointCut =
-        match randomPointCut with
-        | ISL.PointCut (block, oldPos) -> ISL.PointCut (block, boogiePos oldPos)
-        | _ -> failwith "boogieCutPoint: not a point cut"
-    isl.[origIdx] <- newPointCut
-    (Array.toList isl, randomPointCut, newPointCut)
+    if pointCuts.Length > 0 then
+        let idx = Rng.rng.Next(0, pointCuts.Length)
+        let (origIdx, randomPointCut) = pointCuts.[idx]
+        let newPointCut =
+            match randomPointCut with
+            | ISL.PointCut (block, oldPos) -> ISL.PointCut (block, boogiePos oldPos)
+            | _ -> failwith "boogieCutPoint: not a point cut"
+        isl.[origIdx] <- newPointCut
+        Some (Array.toList isl, randomPointCut, newPointCut)
+    else None
 
 let validate canvas isl =
     match isl with
@@ -192,18 +194,20 @@ let optimizeCutPoints (target: Image) (initCanvas: Canvas) (isl: ISL list) =
     let renderedBlock = renderCanvas finalCanvas
     let originalSimilarity = imageSimilarity (sliceWholeImage renderedBlock) (sliceWholeImage target)
     let mutable bestIsl, lowestPenalty = isl, originalIslCost + originalSimilarity
-    for _ = 0 to 10_000 do
-        let newIsl, prevCutPoint, newCutPoint = boogieRandomCutPoint bestIsl
-        match simulateWithValidation initCanvas newIsl with
-        | Some (newCanvas, newIslCost) ->
-            let newRenderedBlock = renderCanvas newCanvas
-            let newSimilarity = imageSimilarity (sliceWholeImage newRenderedBlock) (sliceWholeImage target)
-            let newPenalty = newIslCost + newSimilarity
-            if newPenalty < lowestPenalty then
-                printfn "Optimized %A to %A to reduce penalty from %d to %d" prevCutPoint newCutPoint lowestPenalty newPenalty
-                bestIsl <- newIsl
-                lowestPenalty <- newPenalty
-        | _ -> ()
+    for _ = 0 to 1_000 do
+        match boogieRandomCutPoint bestIsl with
+        | Some (newIsl, prevCutPoint, newCutPoint) ->
+            match simulateWithValidation initCanvas newIsl with
+            | Some (newCanvas, newIslCost) ->
+                let newRenderedBlock = renderCanvas newCanvas
+                let newSimilarity = imageSimilarity (sliceWholeImage newRenderedBlock) (sliceWholeImage target)
+                let newPenalty = newIslCost + newSimilarity
+                if newPenalty < lowestPenalty then
+                    printfn "Optimized %A to %A to reduce penalty from %d to %d" prevCutPoint newCutPoint lowestPenalty newPenalty
+                    bestIsl <- newIsl
+                    lowestPenalty <- newPenalty
+            | _ -> ()
+        | None -> ()
     bestIsl
 
 let chooseBest (target: Image) (initCanvas: Canvas) (solutions: (string * ISL list) list) =
