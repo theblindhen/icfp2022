@@ -57,7 +57,7 @@ type Arguments =
             | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
             | RandomSeed _ -> "The random seed to use"
 
-and AISelector = OneLiner | QuadTree | Random | FastRandom | MCTS | EagerSwapper | AssignSwapper | MergeMeta
+and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeMeta
 and SplitPointSelector = Midpoint | HighestDistance
 
 let loadBestSolution taskPath =
@@ -83,11 +83,6 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
 
 let solverRandom : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // Random does not support non-blank initial canvas
-    let solution, solverCost, solverSimilarity = AI.randomSolver "0" {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
-    solution, Some(solverCost, solverSimilarity)
-
-let solverFastRandom : Solver = fun targetImage canvas ->
-    assert (Map.count canvas.topBlocks = 1) // FastRandom does not support non-blank initial canvas
     let solution, solverCost, solverSimilarity = AI.fastRandomSolver "0" {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
@@ -167,12 +162,6 @@ let main args =
                 | None -> 1
                 | Some n -> n
             (rerunSolver repetitions solverRandom, "random")
-        | FastRandom ->
-            let repetitions =
-                match results.TryGetResult (Repetitions) with
-                | None -> 1
-                | Some n -> n
-            (rerunSolver repetitions solverFastRandom, "fastrandom")
         | MergeMeta ->
             match results.GetResult (MergeAI) with
             | None -> failwith "MergeMeta requires a MergeAI argument"

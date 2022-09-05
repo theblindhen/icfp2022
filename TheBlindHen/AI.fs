@@ -152,7 +152,7 @@ let randomSemiNormalBetween (lowerBound: int) (upperBound: int) =
     if result >= upperBound then upperBound - 1 else result
 
 /// Returns instructions, cost, and similarity (scaled)
-let randomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
+let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
     let canvasArea = float (canvas.size.width * canvas.size.height)
     /// Returns instructions, cost, and distance (not scaled)
     /// The candidateColor parameter is the color of the parent block.
@@ -256,66 +256,6 @@ let randomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canv
     let targetMedian = approxMostFrequentColor target
     let targetMedianDistance = approxSingleColorDistance targetMedian target
     let isl, cost, distance = solve blockId target targetMedian targetMedianDistance currColor
-    (isl, cost, distanceToSimilarity distance)
-
-/// Returns instructions, cost, and similarity (scaled)
-let fastRandomSolver (blockId: string) (currColor: Color) (target: ImageSlice) (canvas: Canvas) : ISL list * int * int =
-    let canvasArea = float (canvas.size.width * canvas.size.height)
-    /// Returns instructions, cost, and distance (not scaled)
-    /// The candidateColor parameter is the color of the parent block.
-    let rec solve (blockId: string) (targetSlice: ImageSlice) (candidateColor: Color) : ISL list * int * float =
-        assert(targetSlice.size.width >= 0)
-        assert(targetSlice.size.height >= 0)
-        let targetArea = targetSlice.size.width * targetSlice.size.height
-        let currentDistance = approxSingleColorDistance candidateColor targetSlice
-        if targetArea <= 79 then ([], 0, currentDistance) else // Even in the best case, coloring is too expensive
-        let colorCost = int (System.Math.Round (5.0 * canvasArea / float targetArea))
-        let candidates =
-            [
-                // Option 1: leave color as is (no-op)
-                ([], 0, currentDistance)
-            ] @ (
-                // Option 2: paint the whole block with the "median" color
-                let medianColor = approxAverageColor target
-                if medianColor = candidateColor then [] else
-                let medianDistance = approxSingleColorDistance medianColor target
-                let isl2_color = ISL.ColorBlock(blockId, medianColor)
-                [([isl2_color], colorCost, medianDistance)]
-            ) @
-            if targetArea <= breakEvenNumberOfPixels || targetSlice.size.width <= 1 || targetSlice.size.height <= 1 then
-                []
-            else
-            // Option 3: split the block into 4 and recurse
-            // TODO: perf: have a heuristic to avoid computing option 3 at all. Otherwise it's probably too slow.
-            let splitX = randomSemiNormalBetween 1 targetSlice.size.width
-            let splitY = randomSemiNormalBetween 1 targetSlice.size.height
-            assert(splitX >= 1 && splitX < targetSlice.size.width)
-            assert(splitY >= 1 && splitY < targetSlice.size.height)
-            let cost3_cut = int (System.Math.Round (10.0 * canvasArea / float targetArea))
-            let largestSlice =
-                // If we can't color at least the largest slice after splitting,
-                // there's no point in splitting in the first place.
-                let largestWidth = max splitX (targetSlice.size.width - splitX)
-                let largestHeight = max splitY (targetSlice.size.height - splitY)
-                largestWidth * largestHeight
-            let cost3_paintLargest = int (System.Math.Round (5.0 * canvasArea / float largestSlice))
-            if cost3_cut + cost3_paintLargest >= distanceToSimilarity currentDistance then [] else
-            let slice0 = subslice targetSlice { width = splitX; height = splitY } { x = 0; y = 0 }
-            let slice1 = subslice targetSlice { width = targetSlice.size.width - splitX; height = splitY } { x = splitX; y = 0 }
-            let slice2 = subslice targetSlice { width = targetSlice.size.width - splitX; height = targetSlice.size.height - splitY } { x = splitX; y = splitY }
-            let slice3 = subslice targetSlice { width = splitX; height = targetSlice.size.height - splitY } { x = 0; y = splitY }
-            let (isl3_0, cost3_0, distance3_0) = solve $"{blockId}.0" slice0 candidateColor
-            let (isl3_1, cost3_1, distance3_1) = solve $"{blockId}.1" slice1 candidateColor
-            let (isl3_2, cost3_2, distance3_2) = solve $"{blockId}.2" slice2 candidateColor
-            let (isl3_3, cost3_3, distance3_3) = solve $"{blockId}.3" slice3 candidateColor
-            let isl3_cut = ISL.PointCut(blockId, { x = splitX + targetSlice.offset.x; y = splitY + targetSlice.offset.y })
-            [(
-                isl3_cut :: isl3_0 @ isl3_1 @ isl3_2 @ isl3_3,
-                cost3_cut + cost3_0 + cost3_1 + cost3_2 + cost3_3,
-                distance3_0 + distance3_1 + distance3_2 + distance3_3
-            )]
-        List.minBy (fun (_, cost, distance) -> cost + distanceToSimilarity distance) candidates
-    let isl, cost, distance = solve blockId target currColor
     (isl, cost, distanceToSimilarity distance)
 
 type MCTSState = {
