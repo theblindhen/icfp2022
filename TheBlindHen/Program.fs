@@ -57,7 +57,7 @@ type Arguments =
             | MergeAI _ -> "The AI to use inside the mergeMeta strategy, if chosen"
             | RandomSeed _ -> "The random seed to use"
 
-and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeMeta
+and AISelector = OneLiner | QuadTree | Random | MCTS | EagerSwapper | AssignSwapper | MergeAll | MergeMeta
 and SplitPointSelector = Midpoint | HighestDistance
 
 let loadBestSolution taskPath =
@@ -83,7 +83,8 @@ let solverQuadTree : AI.SplitPointSelector -> Solver = fun splitpointSelector ta
 
 let solverRandom : Solver = fun targetImage canvas ->
     assert (Map.count canvas.topBlocks = 1) // MCTS does not support non-blank initial canvas
-    let solution, solverCost, solverSimilarity = AI.fastRandomSolver "0" {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
+    let initialBlock = Map.keys canvas.topBlocks |> Seq.head
+    let solution, solverCost, solverSimilarity = AI.fastRandomSolver initialBlock {r=255;g=255;b=255;a=255} (sliceWholeImage targetImage) canvas
     solution, Some(solverCost, solverSimilarity)
 
 let solverMCTS repetitions : Solver = fun targetImage canvas ->
@@ -97,13 +98,16 @@ let penalty x =
     | Some (cost, similarity) -> cost + similarity
 
 let rerunSolver n (solver: Solver) img canvas =
-    let mutable bestSolution, lowestCosts = solver img canvas
+    let mutable bestSolution,_ = solver img canvas
+    let mutable bestCost, bestSim = scoreSolution img canvas bestSolution
     for _ in 1..n do
-        let solution, costs = solver img canvas
-        if penalty costs < penalty lowestCosts then
+        let solution,_ = solver img canvas
+        let cost, similarity = scoreSolution img canvas solution
+        if cost + similarity < bestCost + bestSim then
             bestSolution <- solution
-            lowestCosts <- costs
-    bestSolution, lowestCosts
+            bestCost <- cost
+            bestSim <- similarity
+    bestSolution, Some (bestCost, bestSim)
 
 let runAndScoreSolver taskPath (targetImage: Image) (initCanvas: Canvas) (solver: Solver) =
     let solution, solverComputedCostOpt = solver targetImage initCanvas
@@ -169,6 +173,13 @@ let main args =
             | Some mergeAI ->
                 let innerSolver, innerSolverName = getSolver mergeAI
                 (Merger.mergeMetaSolver innerSolver, $"merge-meta({innerSolverName})")
+        | MergeAll ->
+            match results.GetResult (MergeAI) with
+            | None -> failwith "MergeAll requires a MergeAI argument"
+            | Some MergeMeta -> failwith "Can't use a merge strategy after merging everything"
+            | Some mergeAI ->
+                let innerSolver, innerSolverName = getSolver mergeAI
+                (Merger.mergeAllMetaSolver innerSolver, $"merge-all({innerSolverName})")
     let (solver, solverName) =
         match results.GetResult (AI, None) with
         | None -> ((fun _ _ -> ([],None)), "no AI")
